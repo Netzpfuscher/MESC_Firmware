@@ -21,36 +21,19 @@
  *  Created on: 25 Jul 2020
  *      Author: David Molony
  */
-#include "stm32f3xx_hal.h"
+
+// fixme: what do functions in this file do? Need a description and perhaps a
+// rename of the file to make it obvious.
+
+// SRM: I moved everything that does not need to be exposed to outside world to
+// .c file. This way you know what is accessible and what is not.
 
 #ifndef INC_MESCBLDC_H_
 #define INC_MESCBLDC_H_
 
-#endif /* INC_MESCBLDC_H_ */
-
-typedef struct {
-    float ReqCurrent;
-    int BLDCduty;
-    int BLDCEstate;
-    int CurrentChannel;
-    float currentCurrent;
-    int pGain;
-    int iGain;
-} MESCBLDCVars_s;
-
-MESCBLDCVars_s BLDCVars;
-
-typedef enum {
-    BLDC_FORWARDS = 1,
-    BLDC_BACKWARDS = 2,
-    BLDC_IDLE = 3,
-    BLDC_BRAKE = 4
-} MESCBLDCState_e;
-
-MESCBLDCState_e BLDCState;
-
 /* Function prototypes -----------------------------------------------*/
-void BLDCInit();
-void BLDCCommuteHall();
-void BLDCCurrentController();
-void writeBLDC();
+void motorInit();
+void motorCommuteHall();
+void motorCurrentController();
+
+#endif /* INC_MESCBLDC_H_ */

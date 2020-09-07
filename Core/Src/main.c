@@ -96,11 +96,9 @@ const osThreadAttr_t BatCheckTask_attributes = {
     .priority = (osPriority_t)osPriorityLow,
     .stack_size = 128 * 4};
 /* USER CODE BEGIN PV */
-uint16_t a = 0;
 float adcBuff1[3] = {0, 0, 0};
 uint32_t adcBuff2[3] = {0, 0, 0};
 uint32_t adcBuff3[3] = {0, 0, 0};
-uint32_t ICVals[2] = {0, 0};
 uint32_t RegBuff = 0;
 uint32_t quickHall = 0;
 int initing = 1;
@@ -136,67 +134,10 @@ void BatCheck(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// fixme: this function should not be here. It should be in a separate file or
-// at least marked explicitly what it does and why.
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-        ICVals[0] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_1);
 
-        // Target is 20000 guard is +-10000
-        if ((ICVals[0] < 10000) || (30000 < ICVals[0])) {
-            a = 0;
-            BLDCVars.ReqCurrent = 0;
-        }
-
-        else if (ICVals[0] != 0) {
-            BLDCState = BLDC_FORWARDS;
-            ICVals[1] = HAL_TIM_ReadCapturedValue(&htim3, TIM_CHANNEL_2);
-            if (ICVals[1] > 2000) ICVals[1] = 2000;
-            if (ICVals[1] < 1000) ICVals[1] = 1000;
-
-            // Mid-point is 1500 guard is +-100
-            if ((ICVals[1] > 1400) && (1600 > ICVals[1])) {
-                ICVals[1] = 1500;
-            }
-            // Set the current setpoint here
-            if (1) {  // Current control, ToDo convert to Enum
-                if (ICVals[1] > 1600)
-                    BLDCVars.ReqCurrent =
-                        ((float)ICVals[1] - 1600) /
-                        5.0;  // Crude hack, which gets current scaled to +/-80A
-                              // based on 1000-2000us PWM in
-                else if (ICVals[1] < 1400)
-                    BLDCVars.ReqCurrent =
-                        ((float)ICVals[1] - 1400) /
-                        5.0;  // Crude hack, which gets current scaled to +/-80A
-                              // based on 1000-2000us PWM in
-                else
-                    BLDCVars.ReqCurrent = 0;
-            }
-
-            if (0) {  // Duty cycle control, ToDo convert to Enum
-                if (a < 10) {
-                    BLDCVars.BLDCduty = 0;
-                }
-                if (a > 9) {
-                    BLDCVars.BLDCduty = 10 * (a - 9);
-                }
-            }
-        }
-        // todo: remove dead code.
-        /////////////////////////////////
-        /*		if(ICVals[0]!=0){
-                                ICVals[1]=HAL_TIM_ReadCapturedValue(&htim3,
-           TIM_CHANNEL_2); if(ICVals[1]>1500){ BLDCState=BLDC_FORWARDS;
-                                        a=100*(ICVals[1]-1500)/1500;
-                                }
-                                else if(ICVals[1]<1500){
-                                        BLDCState=BLDC_FORWARDS;
-                                        a=100*(1500-ICVals[1])/1500;
-                                }
-                        }*/
-    }
-}
+// SRM: timer callback was moved to MESCBLDC.c since it seems that's where it
+// belongs. 
+//fixme: might need to refactor variable access.
 
 /* USER CODE END 0 */
 
@@ -278,7 +219,7 @@ int main(void) {
     motor_init();
     hw_init();
     motor.Rphase = 0.1;
-    BLDCInit();
+    motorInit();
     measurement_buffers.ADCOffset[0] = 1900;
     measurement_buffers.ADCOffset[1] = 1900;
     measurement_buffers.ADCOffset[2] = 1900;

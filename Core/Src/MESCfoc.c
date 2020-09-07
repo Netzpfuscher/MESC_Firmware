@@ -50,8 +50,8 @@ void fastLoop() {  // Call this directly from the ADC callback IRQ
                                             // temporary "Get it spinning" kind
                                             // of thing, to be deprecated in
                                             // favour of FOC
-                BLDCCurrentController();
-                BLDCCommuteHall();
+                motorCurrentController();
+                motorCommuteHall();
             }
             // Get the current position from HallTimer
             // Call the current and phase controller
@@ -226,6 +226,8 @@ void GenerateBreak() {
     phW_Break();
 }
 
+// fixme: this function is in dire need of refactoring and explanation of what
+// it does. This weird mapping of numbers onto other numbers will not do at all.
 int GetHallState() {
     // int hallState=0;
     // hallState=((HAL_GPIO_ReadPin(GPIOB,
