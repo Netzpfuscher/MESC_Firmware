@@ -169,8 +169,9 @@ void ADCConversion() {
     // fixme: huh? where does "initing" come from? what does "initing" mean?
     // initialising? Can "initing" be passed as an argument to this function?
     // found it... sort of, but still don't understand.
-    extern int initing;
-    if (initing) {
+    static int initing = 1000;
+
+    if (initing > 0) {
         measurement_buffers.ADCOffset[0] =
             (255 * measurement_buffers.ADCOffset[0] +
              measurement_buffers.RawADC[0][0]) /
@@ -183,11 +184,7 @@ void ADCConversion() {
             (255 * measurement_buffers.ADCOffset[2] +
              measurement_buffers.RawADC[2][0]) /
             256;
-        static int initcycles = 0;
-        initcycles = initcycles + 1;
-        if (initcycles > 1000) {
-            initing = 0;
-        }
+        initing--;
     } else {
         measurement_buffers.ConvertedADC[0][0] =
             ((float)measurement_buffers.RawADC[0][0] -
@@ -229,42 +226,40 @@ void GenerateBreak() {
 // fixme: this function is in dire need of refactoring and explanation of what
 // it does. This weird mapping of numbers onto other numbers will not do at all.
 int GetHallState() {
-    // int hallState=0;
-    // hallState=((HAL_GPIO_ReadPin(GPIOB,
-    // GPIO_PIN_6))|((HAL_GPIO_ReadPin(GPIOB,
-    // GPIO_PIN_7))<<1)|((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_8))<<2)); ToDo Using
-    // these HAL_GPIO_ReadPin functions is very computationally expensive,
-    // should replace with a register read->byte mask->rightshift
+    // fixme: write up a detailed explanation of how this works.
     switch (((GPIOB->IDR >> 6) & 0x7))
     // switch(hallState)
     {
-        case 0:
+            // fixme: replace with enumerators
+        case 0b000:
             return 7;  // 7 is the no hall sensor detected state (all low)
             break;
-        case 7:
+        case 0b111:
             return 6;  // 6 is the no hall sensor detected state (all high)
             break;
             // Implement the hall table order here, depending how the hall
             // sensors are configured
-        case 1:
+        case 0b001:
             return 0;
             break;
-        case 3:
+        case 0b011:
             return 1;
             break;
-        case 2:
+        case 0b010:
             return 2;
             break;
-        case 6:
+        case 0b110:
             return 3;
             break;
-        case 4:
+        case 0b100:
             return 4;
             break;
-        case 5:
+        case 0b101:
             return 5;
             break;
         default:
+            // total panic mode. shut down the motor.
+            __HAL_TIM_MOE_DISABLE(&htim1);
             return 8;
             break;
     }

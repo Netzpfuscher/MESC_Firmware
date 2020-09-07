@@ -124,7 +124,7 @@ void motorCommuteHall() {
     phW_Break();
 }
 
-void runMotorForward(int current_hall_state) {
+inline void runMotorForward(int current_hall_state) {
     // fixme: this operation is completely unclear. Needs explanation of
     // what is going on.
     motor_parameters.state = (current_hall_state + 2) % 6;
@@ -136,7 +136,7 @@ void runMotorForward(int current_hall_state) {
     }
 }
 
-void runMotorBackward(int current_hall_state) {
+inline void runMotorBackward(int current_hall_state) {
     motor_parameters.state = (current_hall_state + 4) % 6;
     writeMotor();  // Write the PWM values for the previous state to generate
                    // reverse torque

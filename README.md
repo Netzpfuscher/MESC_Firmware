@@ -67,7 +67,7 @@ Functions and class methods should be in lowerCamelCase format.
 	void theFunction(int arg1);
 	
 	void adcConvertion();
-
+	
 ### Constant values
 Constants just like #define precompiler define falues should be in UPPER_CASE.
 
