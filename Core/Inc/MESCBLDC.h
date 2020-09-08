@@ -32,8 +32,8 @@
 #define INC_MESCBLDC_H_
 
 /* Function prototypes -----------------------------------------------*/
-void motorInit();
-void motorCommuteHall();
-void motorCurrentController();
+void bldcInit();
+void bldcCommuteHall();
+void bldcCurrentController();
 
 #endif /* INC_MESCBLDC_H_ */
