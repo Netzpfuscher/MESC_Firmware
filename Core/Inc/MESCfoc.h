@@ -25,9 +25,20 @@
 #include "stm32f3xx_hal.h"
 
 #define FOC_SECTORS_PER_REVOLUTION (6)
-#define FOC_CONV_CHANNELS (3)
-#define FOC_TRANSFORMED_CHANNELS (2)
-#define FOC_NUM_ADC (3)
+#define FOC_CONV_CHANNELS          (3)
+#define FOC_TRANSFORMED_CHANNELS   (2)
+#define FOC_NUM_ADC                (3)
+
+typedef enum {
+    SENSOR_PHASE0 = 0,
+    SENSOR_PHASE1 = 1,
+    SENSOR_PHASE2 = 2,
+    SENSOR_PHASE3 = 3,
+    SENSOR_PHASE4 = 4,
+    SENSOR_PHASE5 = 5,
+    SENSOR_UNKNOWN = 7,
+    SENSOR_PANIC = 8
+} EHallSensorPhase_t;
 
 // fixme: I think this type of stuff is causing confusion later on especially in
 // the code that strives for maintainability. What does an alias give you?
@@ -128,7 +139,7 @@ int isMotorRunning();  // return motor state if state is one of the running
                        // states, if it's an idle, error or break state, disable
                        // all outputs and measure the phase voltages - if all
                        // the same, then it's stationary.
-int GetHallState();    // Self explanatory...
+EHallSensorPhase_t getHallState();  // Self explanatory...
 void measureResistance();
 void measureInductance();
 void phU_Break();   // Turn all phase U FETs off, Tristate the ouput - For BLDC

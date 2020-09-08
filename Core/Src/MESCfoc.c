@@ -223,44 +223,41 @@ void GenerateBreak() {
     phW_Break();
 }
 
-// fixme: this function is in dire need of refactoring and explanation of what
-// it does. This weird mapping of numbers onto other numbers will not do at all.
-int GetHallState() {
-    // fixme: write up a detailed explanation of how this works.
+EHallSensorPhase_t GetHallState() {
     switch (((GPIOB->IDR >> 6) & 0x7))
     // switch(hallState)
     {
-            // fixme: replace with enumerators
-        case 0b000:
-            return 7;  // 7 is the no hall sensor detected state (all low)
-            break;
+            // if all pins are high or all low then sensors are malfunctioning
+            // or disconnected.
+        case 0b000: /* fallthrough case statement */
         case 0b111:
-            return 6;  // 6 is the no hall sensor detected state (all high)
+            return (SENSOR_UNKNOWN);
             break;
-            // Implement the hall table order here, depending how the hall
-            // sensors are configured
+            // below is the order in which sensor will commutate in forward
+            // direction.
         case 0b001:
-            return 0;
+            return (SENSOR_PHASE0);
             break;
         case 0b011:
-            return 1;
+            return (SENSOR_PHASE1);
             break;
         case 0b010:
-            return 2;
+            return (SENSOR_PHASE2);
             break;
         case 0b110:
-            return 3;
+            return (SENSOR_PHASE3);
             break;
         case 0b100:
-            return 4;
+            return (SENSOR_PHASE4);
             break;
         case 0b101:
-            return 5;
+            return (SENSOR_PHASE5);
             break;
         default:
-            // total panic mode. shut down the motor.
+            // This should never happen, so if it does total panic mode. shut
+            // down the motor.
             __HAL_TIM_MOE_DISABLE(&htim1);
-            return 8;
+            return (SENSOR_PANIC);
             break;
     }
 }
