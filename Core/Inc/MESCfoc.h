@@ -133,13 +133,13 @@ void writePWM();  // Offset the PWM to voltage centred (0Vduty is 50% PWM) or
                   // subtract lowest phase to always clamp one phase at 0V,
                   // write CCR registers
 
-void GenerateBreak();  // Software break that does not stop the PWM timer but
+void generateBreak();  // Software break that does not stop the PWM timer but
                        // disables the outputs, sum of phU,V,W_Break();
 int isMotorRunning();  // return motor state if state is one of the running
                        // states, if it's an idle, error or break state, disable
                        // all outputs and measure the phase voltages - if all
                        // the same, then it's stationary.
-EHallSensorPhase_t getHallState();  // Self explanatory...
+EHallSensorPhase_t getHallSensorPhase();  // Self explanatory...
 void measureResistance();
 void measureInductance();
 void phU_Break();   // Turn all phase U FETs off, Tristate the ouput - For BLDC

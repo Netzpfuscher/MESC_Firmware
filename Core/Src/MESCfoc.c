@@ -34,44 +34,23 @@ extern TIM_HandleTypeDef htim1;
 void fastLoop() {  // Call this directly from the ADC callback IRQ
     V_I_Check();   // Run the current and voltage checks
     switch (MotorState) {
+        break;
         case MOTOR_STATE_SENSORLESS_RUN:
-            ADCConversion();  // Convert the ADC values into floats, do Clark
-                              // transform
-            // Call the observer
-            // Call the current and phase controller
-            // Write the PWM values
+            runMotorSensorless();
             break;
 
         case MOTOR_STATE_HALL_RUN:
-            ADCConversion();  // Convert the ADC values into floats, do Clark
-                              // transform
-            if (MotorControlType ==
-                MOTOR_CONTROL_TYPE_BLDC) {  // BLDC is hopefully just a
-                                            // temporary "Get it spinning" kind
-                                            // of thing, to be deprecated in
-                                            // favour of FOC
-                motorCurrentController();
-                motorCommuteHall();
-            }
-            // Get the current position from HallTimer
-            // Call the current and phase controller
-            // Write the PWM values
+            runMotorHall(0);
             break;
 
         case MOTOR_STATE_HALL_NEAR_STATIONARY:
-            ADCConversion();  // Convert the ADC values into floats, do Clark
-                              // transform, but we ignore the answer here, just
-                              // want the float currents.
-            // Call GetHallState
-            // Call the BLDC discrete controller - Override the normal current
-            // controller, this is 6 step DC only Write the PWM values
+            runMotorHall(1);
             break;
 
         case MOTOR_STATE_OPEN_LOOP_STARTUP:
-            // Same as open loop
-            ADCConversion();  // Convert the ADC values into floats, do Clark
-                              // transform, ignore result of Clark, just want
-                              // the float currents
+            // Same as open loop. Convert the ADC values into floats, do Clark
+            // transform, ignore result of Clark, just want the float currents
+            ADCConversion();
             openLoopPIFF();
             // Write the PWM values
             break;
@@ -85,53 +64,26 @@ void fastLoop() {  // Call this directly from the ADC callback IRQ
             break;
 
         case MOTOR_STATE_IDLE:
-            // Do basically nothing
+            __HAL_TIM_MOE_DISABLE(&htim1);
             // ToDo Set PWM to no output state
             break;
 
-        case MOTOR_STATE_DETECTING:;
-            int test = 8;  // fixme: why assign a number only to reassign
-                           // straight away with something else?
-            test = GetHallState();
-
-            if ((test == 6) || (test == 7)) {
-                // no hall sensors detected
-                MotorSensorMode = MOTOR_SENSOR_MODE_SENSORLESS;
-            } else if (test == 8) {
-                MotorState = MOTOR_STATE_ERROR;
-            }
-            // ToDo add reporting
-            else {
-                // hall sensors detected
-                MotorSensorMode = MOTOR_SENSOR_MODE_HALL;
-            }
+        case MOTOR_STATE_DETECTING:
+            detectMotorPosition();
             break;
 
         case MOTOR_STATE_MEASURING:
-            if (motor.Rphase ==
-                0) {  // Every PWM cycle we enter this function until
-                      // the resistance measurement has converged at a
-                      // good value. Once the measurement is complete,
-                      // Rphase is set, and this is no longer called
+            if (motor.Rphase == 0) {
                 measureResistance();
-                break;
-            } else if (motor.Lphase == 0) {
-                // As per resistance measurement, this will be called until an
-                // inductance measurement is converged. Inductance measurement
-                // might require a serious reset of the ADC, or calling this
-                // function many times per PWM period by resetting the OCR4
-                // register to trigger the ADC successively
-                measureInductance();
-                break;
+                break;  // do not do inductance until resistance is measured.
             }
-            // fixme: probably a bug: does the break; statement belong after the
-            // closing bracket for if statement?
+            if (motor.Lphase == 0) {
+                measureInductance();
+            }
+            break;
 
         case MOTOR_STATE_ERROR:
-            GenerateBreak();  // Generate a break state
-            // Now panic and freak out
-            // fixme: do we actually need to panic? should there be special
-            // state of MOTOR_STATE_PANIC?
+            generateBreak();
             break;
         case MOTOR_STATE_ALIGN:
             // Turn on at a given voltage at electricalangle0;
@@ -147,6 +99,44 @@ void fastLoop() {  // Call this directly from the ADC callback IRQ
     }
 }
 
+inline void runMotorSensorless() {
+    ADCConversion();  // Convert the ADC values into floats, do Clark
+    // transform
+    // Call the observer
+    // Call the current and phase controller
+    // Write the PWM values
+}
+
+inline void runMotorHall(_Bool b_near_stationary) {
+    // Convert the ADC values into floats, do Clark transform
+    ADCConversion();
+    // BLDC is hopefully just a temporary "Get it spinning" kind of thing, to be
+    // deprecated in favour of FOC
+    if (MotorControlType == MOTOR_CONTROL_TYPE_BLDC) {
+        motorCurrentController();
+        motorCommuteHall();
+    }
+    // Get the current position from HallTimer
+    // Call the current and phase controller
+    // Write the PWM values
+}
+
+inline void detectMotorPosition() {
+    EHallSensorPhase_t sensor_phase = getHallSensorPhase();
+
+    if (sensor_phase == SENSOR_UNKNOWN) {
+        // no hall sensors detected
+        MotorSensorMode = MOTOR_SENSOR_MODE_SENSORLESS;
+        break;
+    } else if (sensor_phase == SENSOR_PANIC) {
+        MotorState = MOTOR_STATE_ERROR;
+    } else {
+        // ToDo add reporting
+        // hall sensors detected
+        MotorSensorMode = MOTOR_SENSOR_MODE_HALL;
+    }
+}
+
 // TODO: refactor this function. Is this function called by DMA interrupt?
 void V_I_Check() {  // &RawADC1,&RawADC2, &RawADC3 as arguments? Is this the
                     // correct use of &pointers? Just need it to look in the
@@ -156,7 +146,7 @@ void V_I_Check() {  // &RawADC1,&RawADC2, &RawADC3 as arguments? Is this the
         (measurement_buffers.RawADC[1][0] > motor.RawCurrLim) |
         (measurement_buffers.RawADC[2][0] > motor.RawCurrLim) |
         (measurement_buffers.RawADC[0][1] > motor.RawVoltLim)) {
-        GenerateBreak();
+        generateBreak();
         MotorState = ERROR;
         // fixme I think this is meant to be MOTOR_STATE_ERROR, not generic
         // system ERROR.
@@ -210,7 +200,7 @@ void ADCConversion() {
     }
 }
 
-void GenerateBreak() {
+void generateBreak() {
     // Here we set all the PWMoutputs to LOW, without triggering the timerBRK,
     // which should only be set by the hardware comparators, in the case of a
     // shoot-through orother catastrophic event This function means that the
@@ -223,7 +213,7 @@ void GenerateBreak() {
     phW_Break();
 }
 
-EHallSensorPhase_t GetHallState() {
+EHallSensorPhase_t getHallSensorPhase() {
     switch (((GPIOB->IDR >> 6) & 0x7))
     // switch(hallState)
     {
@@ -262,6 +252,9 @@ EHallSensorPhase_t GetHallState() {
     }
 }
 
+// Every PWM cycle we enter this function until the resistance measurement has
+// converged at a good value. Once the measurement is complete, Rphase is set,
+// and this is no longer called
 void measureResistance() {
     /*In this function, we are going to use the openloop PIFF controller to
      * create a current, probably 1A, through a pair of motor windings, keeping
