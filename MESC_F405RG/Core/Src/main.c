@@ -119,6 +119,9 @@ int main(void)
     b_read_flash = 1;
     readData();
   }
+  b_read_flash = 1; //Force use of current parameters
+
+
 
   HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
   HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_2);
@@ -131,7 +134,8 @@ int main(void)
   motor_init();
   // MESC_Init();
   MotorControlType = MOTOR_CONTROL_TYPE_FOC;
-
+  motor.Rphase = 0.01f;
+  motor.Lphase = 0.000016f;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -141,7 +145,8 @@ int main(void)
 
 //motor.motor_flux = 32; //Propdrive 2826 1200kV
 //motor.motor_flux = 464; //Red 70kV McMaster 8080 motor
-motor.motor_flux = 575; //Alien 8080 50kV motor
+//motor.motor_flux = 575; //Alien 8080 50kV motor
+motor.motor_flux = 261.0f; //AT12070 60kV
 
 //650 is the right number for a motor with 7PP and 50kV
 

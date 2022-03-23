@@ -1476,7 +1476,7 @@ phW_Enable();
       if (measurement_buffers.RawADC[1][3] > 1200) {
         foc_vars.Idq_req[1] =
             foc_vars.Idq_req[1] +
-            (((float)(measurement_buffers.RawADC[1][3] - 1200)) * 0.02f);
+            (((float)(measurement_buffers.RawADC[1][3] - 1200)) * 0.03f);
       } else {
       }
     }
@@ -1484,7 +1484,7 @@ phW_Enable();
     else if (fUPD != RESET) {
       if (measurement_buffers.RawADC[1][3] > 1200) {
         foc_vars.Idq_req[1] =
-            (((float)(measurement_buffers.RawADC[1][3] - 1200)) * 0.02f);
+            (((float)(measurement_buffers.RawADC[1][3] - 1200)) * 0.03f);
       } else {
         foc_vars.Idq_req[1] = 0.0f;
       }
