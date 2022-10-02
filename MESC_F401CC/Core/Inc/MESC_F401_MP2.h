@@ -113,3 +113,5 @@
 
 #define MESC_UART_USB 		MESC_USB
 #define HW_UART huart1
+
+#define RTOS

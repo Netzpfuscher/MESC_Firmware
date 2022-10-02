@@ -36,7 +36,9 @@
 #define MESC_USB  1
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+
 void USB_CDC_Callback(uint8_t *buffer, uint32_t len);
+void USB_CDC_TransmitCplt();
 
 void uart_init( void );
 

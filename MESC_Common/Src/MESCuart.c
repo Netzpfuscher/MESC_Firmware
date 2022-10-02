@@ -66,6 +66,7 @@ static void uart_ack( void )
 }
 #endif
 
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (UART_rx_buffer[0] == '\r') // Treat CR...
@@ -79,6 +80,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     */
 }
 
+#ifndef RTOS
 void USB_CDC_Callback(uint8_t *buffer, uint32_t len){
 
 	for(int i = 0; i<len; i++){
@@ -91,7 +93,7 @@ void USB_CDC_Callback(uint8_t *buffer, uint32_t len){
 	}
 
 }
-
+#endif
 static void cmd_hall_dec( void )
 {
     for (int i = 0; i < 6; i++)

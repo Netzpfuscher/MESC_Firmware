@@ -35,5 +35,15 @@
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/MESC_Common</locationURI>
 		</link>
+		<link>
+			<name>MESC_Tasks</name>
+			<type>2</type>
+			<locationURI>PARENT-1-PROJECT_LOC/MESC_Tasks</locationURI>
+		</link>
+		<link>
+			<name>TTerm</name>
+			<type>2</type>
+			<locationURI>PARENT-1-PROJECT_LOC/TTerm</locationURI>
+		</link>
 	</linkedResources>
 </projectDescription>
