@@ -37,6 +37,8 @@
 #include "bit_op.h"
 #include "pp_op.h"
 
+#include "TTerm.h"
+
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
@@ -46,6 +48,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define MAKE_TYPE_SIZE(type,size)      ((uint32_t)((uint32_t)((type) << BITS_PER_NYBBLE) | ((uint32_t)(size))))
 #define MAKE_TYPE_SIZE_CASE(type,size) ((uint32_t)((uint32_t)((JOIN( CLI_VARIABLE_, type)) << BITS_PER_NYBBLE) | ((uint32_t)(size))))
@@ -101,14 +104,6 @@ static ProfileStatus cli_flash_write_noop( void const * buffer, uint32_t const a
 
 static ProfileStatus (* cli_flash_write)( void const * buffer, uint32_t const address, uint32_t const length ) = &cli_flash_write_noop;
 
-// Expected values
-static uint32_t cli_flash_exp_len = 0;
-static uint32_t cli_flash_exp_chk = 0;
-// Current values
-static uint32_t cli_flash_cur_off = 0;
-static uint32_t cli_flash_cur_chk = 0;
-
-static uint8_t cli_flash_buffer[PROFILE_MAX_SIZE];
 
 enum CLIAccess
 {
@@ -163,6 +158,7 @@ static CLIVar cli_var = {0};
 struct CLIEntry
 {
     uint32_t        hash;
+    char * 			name;
     union
     {
     void       *    w;
@@ -184,6 +180,10 @@ struct CLIlut_s
 	uint32_t   		entries_n;
 	CLIEntry * 		entry_ptr;
 };
+
+
+typedef uint32_t (* CLIread_t)(TERMINAL_HANDLE * handle, CLIEntry * entry);
+typedef uint32_t (* CLIwrite_t)(TERMINAL_HANDLE * handle, CLIEntry * entry, char * val);
 
 typedef struct CLIlut_s CLIlut_s;
 
@@ -235,6 +235,16 @@ static void (* cli_process_write_value)( char const ) = cli_noop_write;
 static void cli_noop_read( void )
 {
     cli_abort();
+}
+
+static uint32_t cli_read_noop(TERMINAL_HANDLE * handle, CLIEntry * entry) {
+   ttprintf("Error interpreting type\r\n");
+   return TERM_CMD_EXIT_SUCCESS;
+}
+
+static uint32_t cli_write_noop(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val) {
+   ttprintf("Error interpreting type\r\n");
+   return TERM_CMD_EXIT_SUCCESS;
 }
 
 static void (* cli_process_read_value)( void ) = cli_noop_read;
@@ -379,241 +389,152 @@ static CLIEntry * cli_lut_alloc( char const * name )
 
     CLIEntry * entry = &CLIlut.entries[CLIlut.entries_n];
     entry->hash = hash;
+    entry->name = name;
 
     return entry;
 }
 
-static void cli_process_read_xint( void )
-{
-    char cli_buffer[32];
 
-    if (CLIlut.entry_ptr != NULL)
-    {
-        CLIVariableType const type = CLIlut.entry_ptr->type;
-        uint32_t        const size = CLIlut.entry_ptr->size;
-        char * fmt_10 = NULL;
-        char * fmt_16 = NULL;
+static uint32_t cli_read_int(TERMINAL_HANDLE * handle, CLIEntry * entry){
+	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-        switch (MAKE_TYPE_SIZE( type, size ))
-        {
-            case MAKE_TYPE_SIZE_CASE(  INT, 1 ):
-                fmt_10 = PRId8;
-                fmt_16 = PRIX8;
-                break;
-            case MAKE_TYPE_SIZE_CASE(  INT, 2 ):
-                fmt_10 = PRId16;
-                fmt_16 = PRIX16;
-                break;
-            case MAKE_TYPE_SIZE_CASE(  INT, 4 ):
-                fmt_10 = PRId32;
-                fmt_16 = PRIX32;
-                break;
-            case MAKE_TYPE_SIZE_CASE( UINT, 1 ):
-                fmt_10 = PRIu8;
-                fmt_16 = PRIX8;
-                break;
-            case MAKE_TYPE_SIZE_CASE( UINT, 2 ):
-                fmt_10 = PRIu16;
-                fmt_16 = PRIX16;
-                break;
-            case MAKE_TYPE_SIZE_CASE( UINT, 4 ):
-                fmt_10 = PRIu32;
-                fmt_16 = PRIX32;
-                break;
-            default:
-                return;
-        }
-
-        uint32_t const nybbles = NYBBLES_PER_BYTE * size;
-        uint32_t v = UINT32_C(0);
-
-        memcpy( &v, CLIlut.entry_ptr->var.r, size );
-
-        if (cli_cmd == CLI_COMMAND_PROBE)
-        {
-            // %0<nybbles><fmt_16>
-            sprintf( cli_buffer,
-                "%%" "0%" PRIu32 "%s",
-                nybbles, fmt_16 );
-            // %0nPRIxXX
-            cli_reply( cli_buffer, v );
-        }
-        else
-        {
-            // %<fmt_10> 0x%0<nybbles><fmt_16>
-            sprintf( cli_buffer,
-                "%%" "%s"
-                " 0x" "%%" "0%" PRIu32 "%s"
-                "\r" "\n",
-                fmt_10,
-                nybbles, fmt_16 );
-            // %PRIxXX 0x%0nPRIxXX
-            cli_reply( cli_buffer, v, v );
-        }
-    }
+	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+		int32_t i32_val;
+		switch(entry->size){
+			case 1:
+				i32_val = *(int8_t*)entry->var.w;
+				break;
+			case 2:
+				i32_val = *(int16_t*)entry->var.w;
+				break;
+			case 4:
+				i32_val = *(int32_t*)entry->var.w;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		ttprintf("%d\r\n",i32_val);
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_process_write_int( char const c )
-{
-    if ((cli_var.state == CLI_VAR_STATE_IDLE) && (c == '-'))
-    {
-        cli_var.var.i = INT32_C(-1);
-        cli_var.state = CLI_VAR_STATE_INT;
-    }
+static uint32_t cli_read_uint(TERMINAL_HANDLE * handle, CLIEntry * entry){
+	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-    if (('0' <= c) && (c <= '9'))
-    {
-        if (cli_var.state == CLI_VAR_STATE_IDLE)
-        {
-            cli_var.var.i = INT32_C(0);
-        }
-        cli_var.var.i *= INT32_C(10);
-        cli_var.var.i += (c - '0');
-        cli_var.state = CLI_VAR_STATE_INT;
-    }
-    else if (cli_var.state == CLI_VAR_STATE_IDLE)
-    {
-        cli_abort();
-    }
+	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+		uint32_t u32_val;
+		switch(entry->size){
+			case 1:
+				u32_val = *(uint8_t*)entry->var.w;
+				break;
+			case 2:
+				u32_val = *(uint16_t*)entry->var.w;
+				break;
+			case 4:
+				u32_val = *(uint32_t*)entry->var.w;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		ttprintf("%u\r\n",u32_val);
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_process_write_uint( char const c )
-{
-    if (('0' <= c) && (c <= '9'))
-    {
-        if (cli_var.state == CLI_VAR_STATE_IDLE)
-        {
-            cli_var.var.u = UINT32_C(0);
-        }
-        cli_var.var.u *= UINT32_C(10);
-        cli_var.var.u += (c - '0');
-        cli_var.state = CLI_VAR_STATE_UINT;
-    }
-    else
-    {
-        cli_abort();
-    }
+static uint32_t cli_read_float(TERMINAL_HANDLE * handle, CLIEntry * entry){
+	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
+
+	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+		float val;
+		switch(entry->size){
+			case 4:
+				val = *(float*)entry->var.w;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		ttprintf("%f\r\n",val);
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_process_write_hex( char const c )
-{
-    if (cli_var.state < (NYBBLES_PER_BYTE * sizeof(cli_var.var.u)))
-    {
-        cli_var.state++;
+static uint32_t cli_write_int(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
+	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-        cli_var.var.u = (cli_var.var.u << BITS_PER_NYBBLE);
-        
-        if (('0' <= c) && (c <= '9'))
-        {
-            cli_var.var.u = (cli_var.var.u | ((c - '0'     ) & BIT_MASK_32(BITS_PER_NYBBLE)));
-        }
-        else if (('A' <= c) && (c <= 'F'))
-        {
-            cli_var.var.u = (cli_var.var.u | ((c - 'A' + 10) & BIT_MASK_32(BITS_PER_NYBBLE)));
-        }
-        else if (('a' <= c) && (c <= 'f'))
-        {
-            cli_var.var.u = (cli_var.var.u | ((c - 'a' + 10) & BIT_MASK_32(BITS_PER_NYBBLE)));
-        }
-        else
-        {
-            cli_abort();
-        }
-    }
-    else
-    {
-        cli_abort();
-    }
+	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+		int32_t i32_val = strtol(c_val, NULL, 10);
+		int16_t i16_val;
+		int8_t i8_val;
+		switch(entry->size){
+			case 1:
+				i8_val = i32_val;
+				*(int8_t*)entry->var.w = i8_val;
+				break;
+			case 2:
+				i16_val = i32_val;
+				*(int16_t*)entry->var.w = i16_val;
+				break;
+			case 4:
+				*(int32_t*)entry->var.w = i32_val;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_process_read_float( void )
-{
-    if (CLIlut.entry_ptr != NULL)
-    {
-        CLIVariableType const type = CLIlut.entry_ptr->type;
-        uint32_t        const size = CLIlut.entry_ptr->size;
-
-        switch (MAKE_TYPE_SIZE( type, size ))
-        {
-            case MAKE_TYPE_SIZE_CASE( FLOAT, 4 ):
-                break;
-            default:
-                return;
-        }
-
-        cli_reply( "%f" "\r" "\n", *((float const *)CLIlut.entry_ptr->var.r) );
-    }
+static uint32_t cli_write_uint(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
+	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+		uint32_t ui32_val = strtoul(c_val, NULL, 10);
+		uint16_t ui16_val;
+		uint8_t ui8_val;
+		switch(entry->size){
+			case 1:
+				ui8_val = ui32_val;
+				*(uint8_t*)entry->var.w = ui8_val;
+				break;
+			case 2:
+				ui16_val = ui32_val;
+				*(uint16_t*)entry->var.w = ui16_val;
+				break;
+			case 4:
+				*(uint32_t*)entry->var.w = ui32_val;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_process_write_float( char const c )
-{
-    switch (cli_var.state)
-    {
-        case CLI_VAR_STATE_IDLE:
-            cli_var.state = CLI_VAR_STATE_FLOAT_SIGN;
-            switch (c)
-            {
-                case '-':
-                    cli_var.var.f = -1.0f;
-                    break;
-                case '+':
-                    cli_var.var.f = +1.0f;
-                    break;
-                default:
-                    if (('0' <= c) && (c <= '9'))
-                    {
-                        cli_var.var.f = ((float)(c - '0'));
-                        cli_var.state = CLI_VAR_STATE_FLOAT_INT;
-                    }
-                    else
-                    {
-                        cli_abort();
-                    }
-                    break;
-            }
-            break;
-        case CLI_VAR_STATE_FLOAT_SIGN:
-            cli_var.state = CLI_VAR_STATE_FLOAT_INT;
-            if (('0' <= c) && (c <= '9'))
-            {
-                cli_var.var.f *= ((float)(c - '0'));
-            }
-            else
-            {
-                cli_abort();
-            }
-            break;
-        case CLI_VAR_STATE_FLOAT_INT:
-            if (('0' <= c) && (c <= '9'))
-            {
-                float const sgn = (cli_var.var.f < 0.0f) ? -1.0f : 1.0f;
-                cli_var.var.f *= 10.0f;
-                cli_var.var.f += sgn * ((float)(c - '0'));
-            }
-            else if (c == '.')
-            {
-                cli_var.state = CLI_VAR_STATE_FLOAT_FRAC;
-            }
-            else
-            {
-                cli_abort();
-            }
-            break;
-        case CLI_VAR_STATE_FLOAT_FRAC:
-        default:
-            if (('0' <= c) && (c <= '9'))
-            {
-                float const sgn = (cli_var.var.f < 0.0f) ? -1.0f : 1.0f;
-                cli_var.var.f += (sgn * ((float)(c - '0'))) / (float)powf( 10.0f, (float)(cli_var.state - CLI_VAR_STATE_FLOAT_INT)  );
-                cli_var.state++;
-            }
-            else
-            {
-                cli_abort();
-            }
-            break;
-    }
+static uint32_t cli_write_float(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
+	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+		float f_val = atof(c_val);
+		switch(entry->size){
+			case 4:
+				*(float*)entry->var.w = f_val;
+				break;
+			default:
+				return TERM_CMD_EXIT_ERROR;
+		}
+		return TERM_CMD_EXIT_SUCCESS;
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
+
+
 
 void cli_configure_storage_io(
     ProfileStatus (* const write)( void const * buffer, uint32_t const address, uint32_t const length )
@@ -721,167 +642,32 @@ static CLIEntry * cli_lookup( uint32_t const hash )
     return NULL;
 }
 
-static void (* cli_process_write_type( CLIVariableType const type))( char const c )
-{
+
+static CLIread_t cli_get_read_func(CLIVariableType const type){
     switch (type)
     {
         case CLI_VARIABLE_INT:
-            return cli_process_write_int;
+        	return cli_read_int;
         case CLI_VARIABLE_UINT:
-            return cli_process_write_uint;
+            return cli_read_uint;
         case CLI_VARIABLE_FLOAT:
-            return cli_process_write_float;
+            return cli_read_float;
         default:
-            return cli_noop_write;
+            return cli_read_noop;
     }
 }
 
-static void (* cli_process_read_type( CLIVariableType const type))( void )
-{
+static CLIwrite_t cli_get_write_func(CLIVariableType const type){
     switch (type)
     {
         case CLI_VARIABLE_INT:
+            return cli_write_int;
         case CLI_VARIABLE_UINT:
-            return cli_process_read_xint;
+            return cli_write_uint;
         case CLI_VARIABLE_FLOAT:
-            return cli_process_read_float;
+            return cli_write_float;
         default:
-            return cli_noop_read;
-    }
-}
-
-static void cli_process_variable( const char c )
-{
-    switch (c)
-    {
-        case '\n':
-        case ' ':
-        {
-            CLIAccess access = CLI_ACCESS_NONE;
-
-            cli_process_write_value = cli_noop_write;
-            cli_process_read_value  = cli_noop_read;
-
-            switch (cli_cmd)
-            {
-                case CLI_COMMAND_READ:
-                case CLI_COMMAND_PROBE:
-                    access = CLI_ACCESS_R;
-                    break;
-                case CLI_COMMAND_WRITE:
-                    access = CLI_ACCESS_W;
-                    break;
-                case CLI_COMMAND_EXECUTE:
-                    access = CLI_ACCESS_X;
-                    break;
-                case CLI_COMMAND_INCREASE:
-                case CLI_COMMAND_DECREASE:
-                    access = CLI_ACCESS_RW;
-                    break;
-                default:
-                    break;
-            }
-
-            CLIlut.entry_ptr = cli_lookup( cli_hash );
-
-            if  (
-                    (CLIlut.entry_ptr == NULL)
-                ||  ((CLIlut.entry_ptr->access & access) != access)
-                )
-            {
-                cli_abort();
-                break;
-            }
-
-            switch (cli_cmd)
-            {
-                case CLI_COMMAND_READ:
-                    cli_process_read_value = cli_process_read_type( CLIlut.entry_ptr->type );
-                    // fallthrough
-                case CLI_COMMAND_EXECUTE:
-                    cli_state = CLI_STATE_EXECUTE;
-
-                    if  (c == '\n')
-                    {
-                        if (cli_hash_valid)
-                        {
-                            cli_execute();
-                        }
-                        else
-                        {
-                            cli_abort();
-                        }
-                    }
-
-                    break;
-                case CLI_COMMAND_WRITE:
-                    cli_process_write_value = cli_process_write_type( CLIlut.entry_ptr->type );
-
-                    cli_state = CLI_STATE_VALUE;
-                    cli_hash_valid = false;
-                    cli_hash = 0;
-
-                    break;
-                case CLI_COMMAND_INCREASE:
-                case CLI_COMMAND_DECREASE:
-                    cli_process_write_value = cli_process_write_type( CLIlut.entry_ptr->type );
-                    cli_process_read_value  = cli_process_read_type(  CLIlut.entry_ptr->type );
-
-                    cli_state = CLI_STATE_VALUE;
-                    cli_hash_valid = false;
-                    cli_hash = 0;
-
-                    break;
-                case CLI_COMMAND_PROBE:
-                	CLIlut.entry_ptr->access |= CLI_ACCESS_PROBE;
-                    cli_reply( "%" PRIu32 , cli_lookup_index );
-                    break;
-                default:
-                    cli_abort();
-                    break;
-            }
-            break;
-        }
-        default:
-        {
-            if (cli_hash_valid)
-            {
-                if  (
-                        (('0' <= c ) && (c <= '9'))
-                    ||  (('A' <= c ) && (c <= 'Z'))
-                    ||  (('a' <= c ) && (c <= 'z'))
-                    ||  (c == '_')
-                    )
-                {
-                    cli_hash = fnv1a_process( cli_hash, c );
-                }
-                else
-                {
-                    cli_idle();
-                }
-            }
-            else
-            {
-                if  (
-                        (('A' <= c ) && (c <= 'Z'))
-                    ||  (('a' <= c ) && (c <= 'z'))
-                    )
-                {
-                    cli_hash = fnv1a_init();
-                    cli_hash = fnv1a_process( cli_hash, c );
-                    cli_hash_valid = true;
-                }
-                else if (c == '\n')
-                {
-                    cli_idle();
-                }
-                else
-                {
-                    cli_abort();
-                }
-            }
-            break;
-        }
+            return cli_write_noop;
     }
 }
 
@@ -895,242 +681,34 @@ static uint32_t byte_swap(uint32_t const value)
         )   ;
 }
 
-static uint8_t cli_reply_buffer_offset = UINT8_C(0); // ...to here but change to 8 bit
-static uint8_t  cli_reply_buffer[256] = {0};
-//static uint16_t cli_reply_buffer_offset = UINT16_C(0);
 
-static void cli_reply_begin( void )
-{
-    cli_reply_buffer[0] = '\'0';
-    cli_reply_buffer_offset = 0;
+uint8_t cli_read(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	if(argCount == 1){
+		uint32_t hash = fnv1a_process_data(fnv1a_init(), args[0], strlen(args[0]));
+		CLIEntry * entry = cli_lookup(hash);
+		CLIread_t read_func = cli_get_read_func(entry->type);
+		return read_func(handle, entry);
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-static void cli_reply_close( void )
-{
-    if (cli_reply_buffer_offset > 0)
-    {
-        int const ret = cli_io_write( cli_io_handle, cli_reply_buffer, cli_reply_buffer_offset );
-        (void)ret;
-    }
+uint8_t cli_write(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	if(argCount == 2){
+		uint32_t hash = fnv1a_process_data(fnv1a_init(), args[0], strlen(args[0]));
+		CLIEntry * entry = cli_lookup(hash);
+		CLIwrite_t write_func = cli_get_write_func(entry->type);
+		return write_func(handle, entry, args[1]);
+	}else{
+		return TERM_CMD_EXIT_ERROR;
+	}
 }
 
-MESC_INTERNAL_ALIAS(int,CLIState) cli_process( char const c )
-{
-    cli_reply_begin();
-
-    if (c == '\n')
-    {
-        cli_reply( "%s", "\r\n" );
-    }
-    else if (cli_state != CLI_STATE_DATA)
-    {
-        cli_reply( "%c", c );
-    }
-
-    switch (cli_state)
-    {
-        case CLI_STATE_IDLE:
-            switch (c)
-            {
-                case '\n':
-                    break;
-                case CLI_COMMAND_READ:
-                case CLI_COMMAND_WRITE:
-                case CLI_COMMAND_EXECUTE:
-                case CLI_COMMAND_INCREASE:
-                case CLI_COMMAND_DECREASE:
-                case CLI_COMMAND_FLASH:
-                case CLI_COMMAND_PROBE:
-                    cli_cmd = (CLICommand)c;
-                    cli_state = CLI_STATE_COMMAND;
-                    break;
-                default:
-                    cli_abort();
-                    break;
-            }
-            break;
-        case CLI_STATE_ABORT:
-            if (c == '\n')
-            {
-                cli_idle();
-            }
-            break;
-        case CLI_STATE_COMMAND:
-            switch (c)
-            {
-                case '\n':
-                    cli_idle();
-                    break;
-                case ' ':
-                    if (cli_cmd == CLI_COMMAND_FLASH)
-                    {
-                        cli_flash_exp_len = 0;
-                        cli_flash_exp_chk = 0;
-
-                        cli_flash_cur_off = 0;
-                        cli_flash_cur_chk = fnv1a_init();
-
-                        cli_state = CLI_STATE_PARAM_1;
-                    }
-                    else
-                    {
-                        cli_state = CLI_STATE_VARIABLE;
-                    }
-                    break;
-                default:
-                    cli_abort();
-                    break;
-            }
-            break;
-        case CLI_STATE_VARIABLE:
-            cli_process_variable( c );
-            break;
-        case CLI_STATE_VALUE:
-            if (c == ' ')
-            {
-                cli_state = CLI_STATE_EXECUTE;
-            }
-            else if (c != '\n')
-            {
-                cli_process_write_value( c );
-                break;
-            }
-            // fallthrough
-        case CLI_STATE_EXECUTE:
-            switch (c)
-            {
-                case '\n':
-                    cli_execute();
-                    break;
-                case ' ':
-                    break;
-                default:
-                    cli_abort();
-                    break;
-            }
-            break;
-        case CLI_STATE_PARAM_1:
-            if (c == ' ')
-            {
-                cli_flash_exp_len = cli_var.var.u;
-
-                cli_var.state = CLI_VAR_STATE_IDLE;
-                cli_var.var.u = 0;
-
-                cli_state = CLI_STATE_PARAM_2;
-            }
-            else
-            {
-                cli_process_write_hex( c );
-            }
-            break;
-        case CLI_STATE_PARAM_2:
-            if (c == '\n')
-            {
-                cli_flash_exp_chk = cli_var.var.u;
-
-                cli_var.state = CLI_VAR_STATE_IDLE;
-                cli_var.var.u = 0;
-
-                if ((cli_flash_exp_len % sizeof(cli_var.var.u)) == 0)
-                {
-                    cli_state = CLI_STATE_DATA;
-                }
-                else
-                {
-                    cli_abort();
-                }
-            }
-            else
-            {
-                cli_process_write_hex( c );
-            }
-            break;
-        case CLI_STATE_DATA:
-            cli_process_write_hex( c );
-
-            if (cli_var.state == (NYBBLES_PER_BYTE * sizeof(cli_var.var.u)))
-            {
-                cli_var.var.u = byte_swap( cli_var.var.u );
-
-                cli_flash_cur_chk = fnv1a_process_data( cli_flash_cur_chk, &cli_var.var.u, sizeof(cli_var.var.u) );
-
-                *((uint32_t *)(&cli_flash_buffer[cli_flash_cur_off])) = cli_var.var.u;
-                cli_flash_cur_off = cli_flash_cur_off + sizeof(cli_var.var.u);
-
-                cli_var.state = CLI_VAR_STATE_IDLE;
-                cli_var.var.u = 0;
-            }
-
-            if  (
-                    (cli_flash_cur_off > cli_flash_exp_len)
-                ||  (
-                        (cli_flash_cur_off == cli_flash_exp_len)
-                    &&  (cli_flash_cur_chk != cli_flash_exp_chk)
-                    )
-                )
-            {
-                cli_reply("\nFAILURE (MISMATCH)");
-                cli_abort();
-            }
-            else if (
-                        (cli_flash_cur_off == cli_flash_exp_len)
-                    &&  (cli_flash_cur_chk == cli_flash_exp_chk)
-                    )
-            {
-                ProfileStatus const res = cli_flash_write( cli_flash_buffer, 0, cli_flash_exp_len );
-
-                switch (res)
-                {
-                    case PROFILE_STATUS_SUCCESS:
-                    case PROFILE_STATUS_COMMIT_SUCCESS:
-                    case PROFILE_STATUS_COMMIT_SUCCESS_NOOP:
-                        cli_reply("\nSUCCESS", c);
-                        cli_idle();
-                        break;
-                    default:
-                        cli_reply("\nFAILURE (WRITE)");
-                        cli_abort();
-                }
-            }
-
-            break;
-    }
-    
-    cli_reply_close();
-
-    // Required to allow subsequent receive
-    cli_io_read();
-
-    return cli_state;
-}
-
-void cli_reply( char const * p, ... )
-{
-    va_list va;
-
-    va_start( va, p );
-
-    int const len = vsprintf( (char *)&cli_reply_buffer[cli_reply_buffer_offset], p, va );
-
-    cli_reply_buffer_offset = cli_reply_buffer_offset + len;
-
-    va_end( va );
-}
-
-void cli_reply_scope( void )
-{
-	CLIlut.entry_ptr = CLIlut.entries;
-    cli_cmd = CLI_COMMAND_PROBE;
-
-    for ( uint32_t i = 0; i < CLIlut.entries_n; ++i, ++CLIlut.entry_ptr )
-    {
-        if ((CLIlut.entry_ptr->access & CLI_ACCESS_PROBE) == CLI_ACCESS_PROBE)
-        {
-            cli_process_read_value = cli_process_read_type( CLIlut.entry_ptr->type );
-            cli_process_read_value();
-        }
-    }
-
-    cli_reply( "%s", "\r\n" );
+uint8_t cli_list(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	for ( uint32_t i = 0; i < CLIlut.entries_n; ++i){
+		if(CLIlut.entries[i].name != NULL){
+			ttprintf("%s\r\n", CLIlut.entries[i].name);
+		}
+	}
+	return TERM_CMD_EXIT_SUCCESS;
 }

@@ -67,18 +67,6 @@ static void uart_ack( void )
 #endif
 
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    if (UART_rx_buffer[0] == '\r') // Treat CR...
-    {
-        UART_rx_buffer[0] = '\n'; // ...as LF
-    }
-
-    cli_process( UART_rx_buffer[0] );
-    /*
-    Commands may be executed here
-    */
-}
 
 #ifndef RTOS
 void USB_CDC_Callback(uint8_t *buffer, uint32_t len){
@@ -94,106 +82,13 @@ void USB_CDC_Callback(uint8_t *buffer, uint32_t len){
 
 }
 #endif
-static void cmd_hall_dec( void )
-{
-    for (int i = 0; i < 6; i++)
-    {
-        foc_vars.hall_table[i][2] -= 100;
-    }
-}
 
-static void cmd_hall_inc( void )
-{
-    for (int i = 0; i < 6; i++)
-    {
-        foc_vars.hall_table[i][2] += 100;
-    }
-}
-
-static void cmd_hello( void )
-{
-    cli_reply( "%s" "\r" "\n", "HELLO" );
-}
-
-static void cmd_stop( void )
-{
-    cli_reply( "%s" "\r" "\n", "STOP" );
-    input_vars.Idq_req_UART.d = 0;
-    input_vars.Idq_req_UART.q = 0;
-generateBreak();
-}
-
-static void cmd_parameter_setup( void )
-{
-    MotorState = MOTOR_STATE_DETECTING;
-
-    cli_reply( "Vbus%.2f" "\r" "\n", measurement_buffers.ConvertedADC[0][1] );
-}
-
-static void cmd_reset( void )
-{
-    cli_reply( "%s" "\r" "\n", "RESET" );
-
-    __HAL_TIM_MOE_DISABLE_UNCONDITIONALLY( &htim1 );
-    HAL_NVIC_SystemReset();
-}
-
-static void cmd_test( void )
-{
-    MotorState = MOTOR_STATE_TEST;
-    phV_Enable();
-    phW_Enable();
-}
-static void cmd_iqup( void )
-{
-	input_vars.Idq_req_UART.q = input_vars.Idq_req_UART.q+1.0f;
-cli_reply( "%s%f" "\r" "\n", "Iq",foc_vars.Idq_req.q );
-}
-static void cmd_iqdown( void )
-{
-input_vars.Idq_req_UART.q = input_vars.Idq_req_UART.q-1.0f;
-cli_reply( "%s%f" "\r" "\n", "Iq",foc_vars.Idq_req.q );
-}
-static void cmd_measure( void )
-{
-    MotorState = MOTOR_STATE_MEASURING;
-}
-static void cmd_getkV( void )
-{
-    MotorState = MOTOR_STATE_GET_KV;
-}
-static void cmd_detect( void )
-{
-    MotorState = MOTOR_STATE_DETECTING;
-}
 
 void uart_init( void )
 {
-	cli_register_variable_rw( "Idq_req", &input_vars.Idq_req_UART.q, sizeof(input_vars.Idq_req_UART.q), CLI_VARIABLE_FLOAT );
-    cli_register_variable_rw( "Id"       , &foc_vars.Idq_req.d                   , sizeof(foc_vars.Idq_req.d                   ), CLI_VARIABLE_FLOAT );
-    cli_register_variable_rw( "Iq"        , &foc_vars.Idq_req.q                   , sizeof(foc_vars.Idq_req.q                   ), CLI_VARIABLE_FLOAT );
-    cli_register_variable_ro( "Vbus"      , &measurement_buffers.ConvertedADC[0][1], sizeof(measurement_buffers.ConvertedADC[0][1]), CLI_VARIABLE_FLOAT );
+	cli_register_variable_rw( "idq_req", &input_vars.Idq_req_UART.q, sizeof(input_vars.Idq_req_UART.q), CLI_VARIABLE_FLOAT );
+    cli_register_variable_rw( "id"       , &foc_vars.Idq_req.d                   , sizeof(foc_vars.Idq_req.d                   ), CLI_VARIABLE_FLOAT );
+    cli_register_variable_rw( "iq"        , &foc_vars.Idq_req.q                   , sizeof(foc_vars.Idq_req.q                   ), CLI_VARIABLE_FLOAT );
+    cli_register_variable_ro( "vbus"      , &measurement_buffers.ConvertedADC[0][1], sizeof(measurement_buffers.ConvertedADC[0][1]), CLI_VARIABLE_FLOAT );
 
-    cli_register_function( "hall_dec"     , cmd_hall_dec        );
-    cli_register_function( "hall_inc"     , cmd_hall_inc        );
-    cli_register_function( "hello"        , cmd_hello           );
-    cli_register_function( "stop"         , cmd_stop           	);
-    cli_register_function( "param_setup"  , cmd_parameter_setup );
-    cli_register_function( "reset"        , cmd_reset           );
-    cli_register_function( "test"         , cmd_test            );
-    cli_register_function( "q"         	, cmd_iqup            	);
-    cli_register_function( "a"         	, cmd_iqdown            );
-    cli_register_function( "measure"   	, cmd_measure           );
-    cli_register_function( "getkV"   	, cmd_getkV            	);
-    cli_register_function( "detect"   , cmd_detect           	);
-
-
-#if MESC_UART_USB
-    cli_register_io( NULL, (int(*)(void *,void *,uint16_t))HAL_USB_Transmit, usb_ack );
-
-#else
-    cli_register_io( &HW_UART, (int(*)(void *,void *,uint16_t))HAL_UART_Transmit_DMA, uart_ack );
-    // Required to allow initial receive
-    uart_ack();
-#endif
 }

@@ -62,7 +62,7 @@ void motor_init( MOTORProfile const * const profile )
 
         if (ret != PROFILE_STATUS_SUCCESS)
         {
-            cli_reply( "MTR FAILED" "\r" "\n" );
+          //  cli_reply( "MTR FAILED" "\r" "\n" );
         }
     }
     else

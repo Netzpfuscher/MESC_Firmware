@@ -35,6 +35,7 @@
 #include "MESC_INTERNAL.h"
 #include "MESC_STM.h"
 #include "MESCprofile.h"
+#include "TTerm.h"
 
 /*
 Command             Description
@@ -85,6 +86,11 @@ void cli_register_io(
     void (* const read) ( void ) );
 
 MESC_INTERNAL_ALIAS(int,CLIState) cli_process( char const c );
+
+
+uint8_t cli_read(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
+uint8_t cli_write(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
+uint8_t cli_list(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
 
 void cli_reply( char const * p, ... );
 
