@@ -53,45 +53,6 @@
 #define MAKE_TYPE_SIZE(type,size)      ((uint32_t)((uint32_t)((type) << BITS_PER_NYBBLE) | ((uint32_t)(size))))
 #define MAKE_TYPE_SIZE_CASE(type,size) ((uint32_t)((uint32_t)((JOIN( CLI_VARIABLE_, type)) << BITS_PER_NYBBLE) | ((uint32_t)(size))))
 
-enum CLIState
-{
-    CLI_STATE_IDLE,
-
-    CLI_STATE_ABORT,
-
-    CLI_STATE_COMMAND,
-    CLI_STATE_VARIABLE,
-    CLI_STATE_VALUE,
-
-    CLI_STATE_PARAM_1,
-    CLI_STATE_PARAM_2,
-
-    CLI_STATE_EXECUTE,
-
-    CLI_STATE_DATA,
-};
-
-typedef enum CLIState CLIState;
-
-static CLIState cli_state;
-
-enum CLICommand
-{
-    CLI_COMMAND_DECREASE = 'D',
-    CLI_COMMAND_FLASH    = 'F',
-    CLI_COMMAND_INCREASE = 'I',
-    CLI_COMMAND_PROBE    = 'P',
-    CLI_COMMAND_READ     = 'R',
-    CLI_COMMAND_WRITE    = 'W',
-    CLI_COMMAND_EXECUTE  = 'X',
-};
-
-typedef enum CLICommand CLICommand;
-
-static CLICommand cli_cmd;
-
-static bool     cli_hash_valid = false;
-static uint32_t cli_hash = 0;
 
 // Flash functions
 static ProfileStatus cli_flash_write_noop( void const * buffer, uint32_t const address, uint32_t const length )
@@ -153,12 +114,10 @@ struct CLIVar
 
 typedef struct CLIVar CLIVar;
 
-static CLIVar cli_var = {0};
-
 struct CLIEntry
 {
     uint32_t        hash;
-    char * 			name;
+    const char * 			name;
     union
     {
     void       *    w;
@@ -182,7 +141,7 @@ struct CLIlut_s
 };
 
 
-typedef uint32_t (* CLIread_t)(TERMINAL_HANDLE * handle, CLIEntry * entry);
+typedef uint32_t (* CLIread_t)(TERMINAL_HANDLE * handle, CLIEntry * entry, bool newline);
 typedef uint32_t (* CLIwrite_t)(TERMINAL_HANDLE * handle, CLIEntry * entry, char * val);
 
 typedef struct CLIlut_s CLIlut_s;
@@ -190,54 +149,7 @@ typedef struct CLIlut_s CLIlut_s;
 static CLIlut_s CLIlut;
 
 
-static MESC_STM_ALIAS(int,UART_HandleTypeDef) cli_io_write_noop( MESC_STM_ALIAS(void,UART_HandleTypeDef) * handle, MESC_STM_ALIAS(void,uint8_t) * data, uint16_t size )
-{
-    (void)handle;
-    (void)data;
-    (void)size;
-
-    return HAL_OK;
-}
-
-static void cli_io_read_noop( void )
-{
-
-}
-
-static MESC_STM_ALIAS(void,UART_HandleTypeDef) *  cli_io_handle = NULL;
-static MESC_STM_ALIAS(int ,HAL_StatusTypeDef ) (* cli_io_write)( MESC_STM_ALIAS(void,UART_HandleTypeDef) *, MESC_STM_ALIAS(void,uint8_t) *, uint16_t ) = cli_io_write_noop;
-static void                                    (* cli_io_read )( void ) = cli_io_read_noop;
-
-static void cli_idle( void )
-{
-    cli_state = CLI_STATE_IDLE;
-    cli_hash_valid = false;
-    cli_hash = 0;
-    cli_var.state = CLI_VAR_STATE_IDLE;
-    cli_var.var.u = 0;
-}
-
-static void cli_abort( void )
-{
-    cli_state = CLI_STATE_ABORT;
-    cli_hash_valid = false;
-    cli_hash = 0;
-}
-
-static void cli_noop_write( char const c )
-{
-    cli_abort();
-    (void)c;
-}
-
-static void (* cli_process_write_value)( char const ) = cli_noop_write;
-
-static void cli_noop_read( void )
-{
-    cli_abort();
-}
-
-static uint32_t cli_read_noop(TERMINAL_HANDLE * handle, CLIEntry * entry) {
+static uint32_t cli_read_noop(TERMINAL_HANDLE * handle, CLIEntry * entry, bool newline) {
    ttprintf("Error interpreting type\r\n");
    return TERM_CMD_EXIT_SUCCESS;
 }
@@ -245,128 +157,6 @@ static uint32_t cli_read_noop(TERMINAL_HANDLE * handle, CLIEntry * entry) {
 static uint32_t cli_write_noop(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val) {
    ttprintf("Error interpreting type\r\n");
    return TERM_CMD_EXIT_SUCCESS;
-}
-
-static void (* cli_process_read_value)( void ) = cli_noop_read;
-
-static void cli_execute( void )
-{
-    switch (cli_cmd)
-    {
-        case CLI_COMMAND_READ:
-            cli_process_read_value();
-            break;
-        case CLI_COMMAND_WRITE:
-            memcpy( CLIlut.entry_ptr->var.w, &cli_var.var, CLIlut.entry_ptr->size );
-            break;
-        case CLI_COMMAND_EXECUTE:
-        	CLIlut.entry_ptr->var.x();
-            break;
-        case CLI_COMMAND_INCREASE:
-        case CLI_COMMAND_DECREASE:
-        {
-            CLIVariableType const type = CLIlut.entry_ptr->type;
-            uint32_t        const size = CLIlut.entry_ptr->size;
-            union
-            {
-                int8_t   i8;
-                uint8_t  u8;
-
-                int16_t  i16;
-                uint16_t u16;
-
-                int32_t  i32;
-                uint32_t u32;
-
-                float    f32;
-            } * tmp = CLIlut.entry_ptr->var.w;
-
-            switch (MAKE_TYPE_SIZE( type, size ))
-            {
-                case MAKE_TYPE_SIZE_CASE(  INT, sizeof(int8_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->i8 += (int8_t)cli_var.var.i;
-                    }
-                    else
-                    {
-                        tmp->i8 -= (int8_t)cli_var.var.i;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE(  INT, sizeof(int16_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->i16 += (int16_t)cli_var.var.i;
-                    }
-                    else
-                    {
-                        tmp->i16 -= (int16_t)cli_var.var.i;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE(  INT, sizeof(int32_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->i32 += (int32_t)cli_var.var.i;
-                    }
-                    else
-                    {
-                        tmp->i32 -= (int32_t)cli_var.var.i;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE( UINT, sizeof(uint8_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->u8 += (uint8_t)cli_var.var.u;
-                    }
-                    else
-                    {
-                        tmp->u8 -= (uint8_t)cli_var.var.u;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE( UINT, sizeof(uint16_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->u16 += (uint16_t)cli_var.var.u;
-                    }
-                    else
-                    {
-                        tmp->u16 -= (uint16_t)cli_var.var.u;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE( UINT, sizeof(uint32_t) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->u32 += (uint32_t)cli_var.var.u;
-                    }
-                    else
-                    {
-                        tmp->u32 -= (uint32_t)cli_var.var.u;
-                    }
-                    break;
-                case MAKE_TYPE_SIZE_CASE( FLOAT, sizeof(float) ):
-                    if (cli_cmd == CLI_COMMAND_INCREASE)
-                    {
-                        tmp->f32 += (float)cli_var.var.f;
-                    }
-                    else
-                    {
-                        tmp->f32 -= (float)cli_var.var.f;
-                    }
-                    break;
-                default:
-                    return;
-            }
-
-            break;
-        }
-        case CLI_COMMAND_FLASH:
-            break;
-        default:
-            // error
-            break;
-    }
-
-    cli_idle();
 }
 
 static CLIEntry * cli_lut_alloc( char const * name )
@@ -395,10 +185,10 @@ static CLIEntry * cli_lut_alloc( char const * name )
 }
 
 
-static uint32_t cli_read_int(TERMINAL_HANDLE * handle, CLIEntry * entry){
+static uint32_t cli_read_int(TERMINAL_HANDLE * handle, CLIEntry * entry, bool newline){
 	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+	if(entry->access & CLI_ACCESS_R){
 		int32_t i32_val;
 		switch(entry->size){
 			case 1:
@@ -420,10 +210,10 @@ static uint32_t cli_read_int(TERMINAL_HANDLE * handle, CLIEntry * entry){
 	}
 }
 
-static uint32_t cli_read_uint(TERMINAL_HANDLE * handle, CLIEntry * entry){
+static uint32_t cli_read_uint(TERMINAL_HANDLE * handle, CLIEntry * entry, bool newline){
 	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+	if(entry->access & CLI_ACCESS_R){
 		uint32_t u32_val;
 		switch(entry->size){
 			case 1:
@@ -445,10 +235,10 @@ static uint32_t cli_read_uint(TERMINAL_HANDLE * handle, CLIEntry * entry){
 	}
 }
 
-static uint32_t cli_read_float(TERMINAL_HANDLE * handle, CLIEntry * entry){
+static uint32_t cli_read_float(TERMINAL_HANDLE * handle, CLIEntry * entry, bool newline){
 	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-	if(entry->access == CLI_ACCESS_RW || entry->access == CLI_ACCESS_R || entry->access == CLI_ACCESS_RO){
+	if(entry->access & CLI_ACCESS_R){
 		float val;
 		switch(entry->size){
 			case 4:
@@ -467,7 +257,7 @@ static uint32_t cli_read_float(TERMINAL_HANDLE * handle, CLIEntry * entry){
 static uint32_t cli_write_int(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
 	if(entry == NULL) return TERM_CMD_EXIT_ERROR;
 
-	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+	if(entry->access & CLI_ACCESS_W){
 		int32_t i32_val = strtol(c_val, NULL, 10);
 		int16_t i16_val;
 		int8_t i8_val;
@@ -493,7 +283,7 @@ static uint32_t cli_write_int(TERMINAL_HANDLE * handle, CLIEntry * entry, char *
 }
 
 static uint32_t cli_write_uint(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
-	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+	if(entry->access & CLI_ACCESS_W){
 		uint32_t ui32_val = strtoul(c_val, NULL, 10);
 		uint16_t ui16_val;
 		uint8_t ui8_val;
@@ -519,7 +309,7 @@ static uint32_t cli_write_uint(TERMINAL_HANDLE * handle, CLIEntry * entry, char 
 }
 
 static uint32_t cli_write_float(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
-	if(entry->access == CLI_ACCESS_W || entry->access == CLI_ACCESS_WO || entry->access == CLI_ACCESS_RW){
+	if(entry->access & CLI_ACCESS_W){
 		float f_val = atof(c_val);
 		switch(entry->size){
 			case 4:
@@ -533,8 +323,6 @@ static uint32_t cli_write_float(TERMINAL_HANDLE * handle, CLIEntry * entry, char
 		return TERM_CMD_EXIT_ERROR;
 	}
 }
-
-
 
 void cli_configure_storage_io(
     ProfileStatus (* const write)( void const * buffer, uint32_t const address, uint32_t const length )
@@ -617,15 +405,6 @@ void cli_register_function(
     }
 }
 
-void cli_register_io(
-    MESC_STM_ALIAS(void,UART_HandleTypeDef) * handle,
-    MESC_STM_ALIAS(int,HAL_StatusTypeDef) (* const write)( MESC_STM_ALIAS(void,UART_HandleTypeDef) * handle, MESC_STM_ALIAS(void,uint8_t) * data, uint16_t size ),
-    void (* const read)( void ) )
-{
-    cli_io_handle = handle;
-    cli_io_write  = write;
-    cli_io_read   = read;
-}
 
 static uint32_t cli_lookup_index;
 
@@ -671,23 +450,12 @@ static CLIwrite_t cli_get_write_func(CLIVariableType const type){
     }
 }
 
-static uint32_t byte_swap(uint32_t const value)
-{
-    return  (
-                ((value & UINT32_C(0x000000FF)) << 24)
-            |   ((value & UINT32_C(0x0000FF00)) <<  8)
-            |   ((value & UINT32_C(0x00FF0000)) >>  8)
-            |   ((value & UINT32_C(0xFF000000)) >> 24)
-        )   ;
-}
-
-
 uint8_t cli_read(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 	if(argCount == 1){
 		uint32_t hash = fnv1a_process_data(fnv1a_init(), args[0], strlen(args[0]));
 		CLIEntry * entry = cli_lookup(hash);
 		CLIread_t read_func = cli_get_read_func(entry->type);
-		return read_func(handle, entry);
+		return read_func(handle, entry, true);
 	}else{
 		return TERM_CMD_EXIT_ERROR;
 	}
@@ -707,7 +475,15 @@ uint8_t cli_write(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 uint8_t cli_list(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 	for ( uint32_t i = 0; i < CLIlut.entries_n; ++i){
 		if(CLIlut.entries[i].name != NULL){
-			ttprintf("%s\r\n", CLIlut.entries[i].name);
+			if(argCount==1){
+				if(args[0][0] != CLIlut.entries[i].name[0]) continue;
+			}
+			char R = CLIlut.entries[i].access & CLI_ACCESS_R ? 'r' : '-';
+			char W = CLIlut.entries[i].access & CLI_ACCESS_W ? 'w' : '-';
+			char X = CLIlut.entries[i].access & CLI_ACCESS_X ? 'x' : '-';
+			ttprintf("%c%c%c    %s = ", R, W, X, CLIlut.entries[i].name);
+			CLIread_t read_func = cli_get_read_func(CLIlut.entries[i].type);
+			read_func(handle, &CLIlut.entries[i], true);
 		}
 	}
 	return TERM_CMD_EXIT_SUCCESS;
