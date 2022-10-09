@@ -5,7 +5,17 @@
 #include "MESCmotor_state.h"
 #include "MESCcli.h"
 
+#include <stdlib.h>
+
 uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	motor.measure_current = I_MEASURE;
+	motor.measure_voltage = V_MEASURE;
+
+	if(argCount==2){
+		motor.measure_current = atoff(args[0]);
+		motor.measure_voltage = atoff(args[1]);
+	}
+
     MotorState = MOTOR_STATE_MEASURING;
     ttprintf("Waiting for result");
 
@@ -42,6 +52,13 @@ uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 }
 
 uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	motor.measure_current = I_MEASURE;
+	motor.measure_voltage = V_MEASURE;
+
+	if(argCount==1){
+		motor.measure_current = atoff(args[0]);
+	}
+
     MotorState = MOTOR_STATE_GET_KV;
     ttprintf("Waiting for result");
 
@@ -59,6 +76,15 @@ uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 
 
 void MESCinterface_init(void){
+	cli_register_var_rw("idq_req" , input_vars.Idq_req_UART.q);
+    cli_register_var_rw( "id"     , foc_vars.Idq_req.d);
+    cli_register_var_rw( "iq"     , foc_vars.Idq_req.q);
+    cli_register_var_ro( "vbus"   , measurement_buffers.ConvertedADC[0][1]);
+    cli_register_var_rw( "ld"     , motor.Lphase);
+    cli_register_var_rw( "lq"     , motor.Lqphase);
+    cli_register_var_rw( "r"      , motor.Rphase);
+
+
 	TERM_addCommand(CMD_measure, "measure", "Measure motor R+L", 0, &TERM_defaultList);
 	TERM_addCommand(CMD_getkv, "getkv", "Measure motor kV", 0, &TERM_defaultList);
 	TERM_addCommand(cli_read, "read", "Read variable", 0, &TERM_defaultList);

@@ -1005,7 +1005,7 @@ if(phasebalance){
       phU_Enable();
       phV_Enable();
       phW_Enable();
-      foc_vars.Idq_req.d = I_MEASURE;
+      foc_vars.Idq_req.d = motor.measure_current;
       foc_vars.Idq_req.q = 0.0f;
       foc_vars.FOCAngle = 0;
 
@@ -1019,7 +1019,7 @@ if(phasebalance){
     }
 
     else if (PWM_cycles < 35000) {  // Align the rotor for ~1 second
-      foc_vars.Idq_req.d = I_MEASURE;
+      foc_vars.Idq_req.d = motor.measure_current;
       foc_vars.Idq_req.q = 0.0f;
 
       foc_vars.inject = 0;
@@ -1028,7 +1028,7 @@ if(phasebalance){
     }
 
     else if (PWM_cycles < 40000) {  // Lower setpoint
-      foc_vars.Idq_req.d = 0.20f*I_MEASURE;
+      foc_vars.Idq_req.d = 0.20f*motor.measure_current;
       foc_vars.inject = 0;
       MESCFOC();
       writePWM();
@@ -1039,7 +1039,7 @@ if(phasebalance){
     }
 
     else if (PWM_cycles < 45000) {  // Upper setpoint stabilisation
-      foc_vars.Idq_req.d = I_MEASURE;
+      foc_vars.Idq_req.d = motor.measure_current;
       foc_vars.inject = 0;
       MESCFOC();
       writePWM();
@@ -1047,7 +1047,7 @@ if(phasebalance){
     }
 
     else if (PWM_cycles < 50000) {  // Upper setpoint
-      foc_vars.Idq_req.d = I_MEASURE;
+      foc_vars.Idq_req.d = motor.measure_current;
       foc_vars.inject = 0;
       MESCFOC();
       writePWM();
@@ -1078,7 +1078,7 @@ if(phasebalance){
     else if (PWM_cycles < 80001) {
       // generateBreak();
       foc_vars.inject = 1;  // flag to the SVPWM writer to inject at top
-      foc_vars.Vd_injectionV = V_MEASURE;
+      foc_vars.Vd_injectionV = motor.measure_voltage;
       foc_vars.Vq_injectionV = 0.0f;
 
       foc_vars.Vdq.d = Vd_temp;
@@ -1113,7 +1113,7 @@ if(phasebalance){
     } else if (PWM_cycles < 100003) {
       //			generateBreak();
       foc_vars.Vd_injectionV = 0.0f;
-      foc_vars.Vq_injectionV = V_MEASURE;
+      foc_vars.Vq_injectionV = motor.measure_voltage;
       foc_vars.inject = 1;  // flag to the SVPWM writer to update at top
       foc_vars.Vdq.d = Vd_temp;  // Vd_temp to keep it aligned with D axis
       foc_vars.Vdq.q = 0.0f;
@@ -1295,7 +1295,7 @@ if(phasebalance){
     static int count = 0;
     static uint16_t temp_angle;
     if (cycles < 60002) {
-        foc_vars.Idq_req.d = I_MEASURE*0.5f;  //
+        foc_vars.Idq_req.d = motor.measure_current*0.5f;  //
         foc_vars.Idq_req.q = 0.0f;
     	angle_delta = temp_angle-foc_vars.FOCAngle;
     	foc_vars.openloop_step = (uint16_t)(ERPM_MEASURE*65536.0f/(foc_vars.pwm_frequency*60.0f)*(float)cycles/65000.0f);

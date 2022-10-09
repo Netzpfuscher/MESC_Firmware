@@ -25,8 +25,6 @@
 /* USER CODE BEGIN Includes */
 #include "MESCmotor.h"
 
-#include "MESCuart.h"
-
 #ifdef RTOS
 #include "init.h"
 #endif
@@ -126,7 +124,6 @@ int main(void)
   MX_TIM10_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  uart_init();
   //Set up the input capture for throttle
   HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_IC_Start(&htim2, TIM_CHANNEL_2);
@@ -141,6 +138,8 @@ motor.Rphase = DEFAULT_MOTOR_R;
 motor.Lphase = DEFAULT_MOTOR_Ld;
 motor.Lqphase = DEFAULT_MOTOR_Lq;
 motor.motor_flux = DEFAULT_FLUX_LINKAGE;
+motor.measure_current = I_MEASURE;
+motor.measure_voltage = V_MEASURE;
 //motor_profile->Pmax = 50.0f;
 motor.uncertainty = 1;
 

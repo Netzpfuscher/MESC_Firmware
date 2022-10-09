@@ -23,8 +23,6 @@
 
 /* USER CODE BEGIN INCLUDE */
 
-#include "MESCuart.h"
-
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/

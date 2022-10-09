@@ -31,6 +31,7 @@
 
 #include "MESCcli.h"
 #include "MESCprofile.h"
+#include "math.h"
 
 #include "stm32fxxx_hal.h"
 
