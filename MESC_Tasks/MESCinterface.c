@@ -2,6 +2,8 @@
 
 #include "main.h"
 #include "TTerm.h"
+#include "task_cli.h"
+#include "task_overlay.h"
 #include "MESCmotor_state.h"
 #include "MESCcli.h"
 
@@ -19,8 +21,11 @@ uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
     MotorState = MOTOR_STATE_MEASURING;
     ttprintf("Waiting for result");
 
+    port_str * port = handle->port;
     while(MotorState == MOTOR_STATE_MEASURING){
+    	xSemaphoreGive(port->term_block);
     	vTaskDelay(200);
+    	xQueueSemaphoreTake(port->term_block, portMAX_DELAY);
     	ttprintf(".");
     }
 
@@ -62,8 +67,11 @@ uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
     MotorState = MOTOR_STATE_GET_KV;
     ttprintf("Waiting for result");
 
+    port_str * port = handle->port;
     while(MotorState == MOTOR_STATE_GET_KV){
+    	xSemaphoreGive(port->term_block);
     	vTaskDelay(200);
+    	xQueueSemaphoreTake(port->term_block, portMAX_DELAY);
 		ttprintf(".");
 	}
 
@@ -90,4 +98,7 @@ void MESCinterface_init(void){
 	TERM_addCommand(cli_read, "read", "Read variable", 0, &TERM_defaultList);
 	TERM_addCommand(cli_write, "write", "Write variable", 0, &TERM_defaultList);
 	TERM_addCommand(cli_list, "list", "List all variables", 0, &TERM_defaultList);
+	TERM_addCommand(CMD_status, "status", "Realtime data", 0, &TERM_defaultList);
+
+	REGISTER_apps(&TERM_defaultList);
 }

@@ -47,6 +47,8 @@ typedef struct{
 	uint16_t rx_buffer_size;  //power of 2
 	bool half_duplex;
 	TaskHandle_t task_handle;
+	TaskHandle_t overlay_handle;
+	SemaphoreHandle_t term_block;
 	SemaphoreHandle_t tx_semaphore;
 } port_str;
 

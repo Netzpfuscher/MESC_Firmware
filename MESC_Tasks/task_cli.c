@@ -134,6 +134,9 @@ void task_cli(void * argument)
 	port->tx_semaphore = xSemaphoreCreateBinary();
 	xSemaphoreGive(port->tx_semaphore);
 
+	port->term_block = xSemaphoreCreateBinary();
+	xSemaphoreGive(port->term_block);
+
 	TERMINAL_HANDLE * term_cli;
 
 	term_cli =  TERM_createNewHandle(ext_printf, port, pdTRUE, &TERM_defaultList, NULL, "usb");
@@ -150,14 +153,18 @@ void task_cli(void * argument)
 		switch(port->hw_type){
 			case HW_TYPE_UART:
 				while(rd_ptr != uart_get_write_pos(port)) {
+					xSemaphoreTake(port->term_block, portMAX_DELAY);
 					TERM_processBuffer(&port->rx_buffer[rd_ptr],1,term_cli);
+					xSemaphoreGive(port->term_block);
 					rd_ptr++;
 					rd_ptr &= ((uint32_t)port->rx_buffer_size - 1);
 				}
 				break;
 			case HW_TYPE_USB:
 				while(xStreamBufferReceive(rx_stream, &c, 1, 1)){
+					xSemaphoreTake(port->term_block, portMAX_DELAY);
 					TERM_processBuffer(&c,1,term_cli);
+					xSemaphoreGive(port->term_block);
 				}
 
 			break;
