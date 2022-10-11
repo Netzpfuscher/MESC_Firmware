@@ -28,9 +28,9 @@
 #define APP_DESCRIPTION "shows performance stats"
 #define APP_STACK 250
 
-uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
-void TASK_main(void *pvParameters);
-uint8_t INPUT_handler(TERMINAL_HANDLE * handle, uint16_t c);
+static uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
+static void TASK_main(void *pvParameters);
+static uint8_t INPUT_handler(TERMINAL_HANDLE * handle, uint16_t c);
 
 static uint32_t SYS_getCPULoadFine(TaskStatus_t * taskStats, uint32_t taskCount, uint32_t sysTime);
 static const char * SYS_getTaskStateString(eTaskState state);
@@ -40,7 +40,7 @@ uint8_t REGISTER_top(TermCommandDescriptor * desc){
     return pdTRUE;
 }
 
-uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+static uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
     
     uint8_t currArg = 0;
     uint8_t returnCode = TERM_CMD_EXIT_SUCCESS;
@@ -66,7 +66,7 @@ uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
     return returnCode;
 }
 
-void TASK_main(void *pvParameters){
+static void TASK_main(void *pvParameters){
     TERMINAL_HANDLE * handle = (TERMINAL_HANDLE*)pvParameters;
     char c=0;
     do{
@@ -115,7 +115,7 @@ void TASK_main(void *pvParameters){
     TERM_killProgramm(handle);
 }
 
-uint8_t INPUT_handler(TERMINAL_HANDLE * handle, uint16_t c){
+static uint8_t INPUT_handler(TERMINAL_HANDLE * handle, uint16_t c){
     if(handle->currProgram->inputStream==NULL) return TERM_CMD_EXIT_SUCCESS;
     switch(c){
         case 'q':

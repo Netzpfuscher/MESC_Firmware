@@ -21,14 +21,11 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#if !defined(app_apps_H)
-#define app_apps_H
+#if !defined(app_top_H)
+#define app_top_H
 
 #include "TTerm.h"
 
-#include "top.h"
-#include "calibrate.h"
-
-uint8_t REGISTER_apps(TermCommandDescriptor * desc);
+uint8_t REGISTER_calibrate(TermCommandDescriptor * desc);
 
 #endif
