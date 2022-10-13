@@ -72,7 +72,7 @@ void show_overlay(TERMINAL_HANDLE * handle){
 	ttprintf("Bus Current:      %10.2f A", foc_vars.Ibus);
 
 	TERM_setCursorPos(handle, row_pos + 3, col_pos + 1);
-	ttprintf("Speed:           %10.2f Hz", foc_vars.eHz);
+	ttprintf("Speed:         %10.2f ERPM", foc_vars.eHz*60.0);
 
 	TERM_setCursorPos(handle, row_pos + 4, col_pos + 1);
 	ttprintf("Power:            %10.2f W", foc_vars.currentPower.q);
@@ -80,8 +80,47 @@ void show_overlay(TERMINAL_HANDLE * handle){
 	TERM_setCursorPos(handle, row_pos + 5, col_pos + 1);
 	ttprintf("MESC status: ");
 
-
-	ttprintf("            Ready");
+	switch(MotorState){
+	case MOTOR_STATE_INITIALISING:
+		ttprintf("     INITIALISING");
+		break;
+	case MOTOR_STATE_DETECTING:
+		ttprintf("        DETECTING");
+		break;
+	case MOTOR_STATE_MEASURING:
+		ttprintf("        MEASURING");
+		break;
+	case MOTOR_STATE_ALIGN:
+		ttprintf("            ALIGN");
+		break;
+	case MOTOR_STATE_OPEN_LOOP_STARTUP:
+		ttprintf("       OL STARTUP");
+		break;
+	case MOTOR_STATE_OPEN_LOOP_TRANSITION:
+		ttprintf("    OL TRANSITION");
+		break;
+	case MOTOR_STATE_TRACKING:
+		ttprintf("         TRACKING");
+		break;
+	case MOTOR_STATE_RUN:
+		ttprintf("              RUN");
+		break;
+	case MOTOR_STATE_GET_KV:
+		ttprintf("           GET KV");
+		break;
+	case MOTOR_STATE_TEST:
+		ttprintf("             TEST");
+		break;
+	case MOTOR_STATE_ERROR:
+		ttprintf("            ERROR");
+		break;
+	case MOTOR_STATE_RECOVERING:
+		ttprintf("       RECOVERING");
+		break;
+	case MOTOR_STATE_IDLE:
+		ttprintf("             IDLE");
+		break;
+	}
 
 
 	TERM_sendVT100Code(handle, _VT100_CURSOR_RESTORE_POSITION,0);

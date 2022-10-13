@@ -633,6 +633,8 @@ if(phasebalance){
 #else
     foc_vars.FOCAngle = angle;
 #endif
+    }else{
+    	foc_vars.eHz = 0;
     }
 
 #ifdef USE_ENCODER
