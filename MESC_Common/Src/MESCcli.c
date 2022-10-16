@@ -79,6 +79,7 @@ enum CLIAccess
     CLI_ACCESS_RW   = (CLI_ACCESS_R | CLI_ACCESS_W),
 
     CLI_ACCESS_PROBE = 0x8,
+	CLI_ACCESS_FLASH = 0x16,
 };
 
 typedef enum CLIAccess CLIAccess;

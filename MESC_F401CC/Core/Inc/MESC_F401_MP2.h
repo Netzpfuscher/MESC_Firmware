@@ -15,7 +15,7 @@
 //#define MISSING_WCURRSENSOR //Also requires that the third ADC is spoofed in the getRawADC(void) function in MESChw_setup.c to avoid trips
 
 #define DEADTIME_COMP
-#define DEADTIME_COMP_V 20 	//Arbitrary value for now, needs parametising.
+#define DEADTIME_COMP_V 10 	//Arbitrary value for now, needs parametising.
 							//Basically this is half the time between MOSoff and MOSon
 							//and needs dtermining experimentally, either with openloop
 							//sin wave drawing or by finding the zero current switching "power knee point"
@@ -38,7 +38,7 @@
 #define MAX_IQ_REQUEST 5.0f
 
 #define I_MEASURE 5.0f 			//Higher setpoint for resistance measurement, half this used for OL spin up
-#define IMEASURE_CLOSEDLOOP 1.5f 	//After spinning up openloop and getting an approximation,
+#define IMEASURE_CLOSEDLOOP 4.5f 	//After spinning up openloop and getting an approximation,
 									//this current is used to driver the motor and collect a refined flux linkage
 #define V_MEASURE 4.0f 	//Voltage injected for measuring inductance
 #define ERPM_MEASURE 3000.0f
@@ -78,7 +78,7 @@
 //#define USE_FIELD_WEAKENING
 #define FIELD_WEAKENING_CURRENT 10.0f
 #define FIELD_WEAKENING_THRESHOLD 0.8f
-#define USE_HFI
+//#define USE_HFI
 #define HFI_VOLTAGE 4.0f
 #define HFI_TEST_CURRENT 1.0f
 
@@ -95,7 +95,10 @@
 //#define DO_OPENLOOP //A fudge that can be used for openloop testing; disable HFI
 
 #define USE_SQRT_CIRCLE_LIM
-
+//#define INTERPOLATE_V7_ANGLE
+//#define USE_LR_OBSERVER
+#define LR_OBS_CURRENT 0.2f 	//Inject this much current into the d-axis at the slowloop frequency and observe the change in Vd and Vq
+								//Needs to be a small current that does not have much effect on the running parameters.
 //#define USE_MTPA
 
 /////Related to observer

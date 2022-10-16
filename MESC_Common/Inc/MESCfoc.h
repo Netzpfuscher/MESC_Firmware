@@ -25,6 +25,8 @@
 #ifndef MESC_FOC_H
 #define MESC_FOC_H
 
+
+#include <stdbool.h>
 #include "stm32fxxx_hal.h"
 
 #define FOC_SECTORS_PER_REVOLUTION (6)
@@ -148,6 +150,7 @@ typedef struct {
   float Ldq_now_dboost[2];
 
   float IIR[2];
+  bool hfi_enable;
 } MESCfoc_s;
 
 extern MESCfoc_s foc_vars;
@@ -304,4 +307,5 @@ void MESCTrack();
 void deadshort();
 void tle5012();
 void getDeadtime();
+void LRObserver();
 #endif

@@ -55,9 +55,7 @@ void motor_init( MOTORProfile const * const profile )
 		motor_profile_default.non_linear_centering_gain = NON_LINEAR_CENTERING_GAIN;
         uint32_t            motor_length = sizeof(motor_profile_default);
 
-        ProfileStatus const ret = profile_get_entry(
-            "MTR", MOTOR_PROFILE_SIGNATURE,
-            &motor_profile_default, &motor_length );
+        ProfileStatus const ret = profile_get_entry("MTR", MOTOR_PROFILE_SIGNATURE, &motor_profile_default, &motor_length);
 
         motor_profile = &motor_profile_default;
 

@@ -66,7 +66,7 @@ void temp_init( TEMPProfile const * const profile )
 
         ProfileStatus const ret = profile_get_entry(
             "TEMP", TEMP_PROFILE_SIGNATURE,
-            &temp_profile_default, &temp_length );
+            &temp_profile_default, &temp_length);
 
         temp_profile = &temp_profile_default;
 

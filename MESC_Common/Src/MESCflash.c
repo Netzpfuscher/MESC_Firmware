@@ -31,6 +31,7 @@ static ProfileStatus writeBegin( void )
 		return PROFILE_STATUS_ERROR_STORAGE_WRITE;
 	}
 
+	vTaskDelay(100);
 	uint32_t      const addr = getFlashBaseAddress();
     ProfileStatus const ret  = eraseFlash( addr, PROFILE_MAX_SIZE );
 
@@ -79,6 +80,7 @@ static ProfileStatus writeFlash( void const * const buffer, uint32_t const addre
 
 static ProfileStatus writeEnd( void )
 {
+	vTaskDelay(100);
 	HAL_StatusTypeDef const sts = HAL_FLASH_Lock();
 
 	if (sts != HAL_OK)

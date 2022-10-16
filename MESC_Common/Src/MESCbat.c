@@ -49,7 +49,7 @@ void bat_init( BATProfile const * const profile )
 
         ProfileStatus const ret = profile_get_entry(
             "BAT", BAT_PROFILE_SIGNATURE,
-            &bat_profile_default, &bat_length );
+            &bat_profile_default, &bat_length);
 
         bat_profile = &bat_profile_default;
 

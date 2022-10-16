@@ -57,7 +57,7 @@ void speed_init( SPEEDProfile const * const profile )
 
         ProfileStatus const ret = profile_get_entry(
             "SPD", SPEED_PROFILE_SIGNATURE,
-            &speed_profile_default, &speed_length );
+            &speed_profile_default, &speed_length);
 
         speed_profile = &speed_profile_default;
 

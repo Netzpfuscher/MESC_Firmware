@@ -90,7 +90,8 @@ void getRawADCVph(void){
 
 
 }
-#if 0
+
+
 static uint32_t const flash_sector_map[] = {
     // 4 x  16k
     FLASH_BASE + (0 * (16 << 10)),
@@ -99,16 +100,12 @@ static uint32_t const flash_sector_map[] = {
     FLASH_BASE + (3 * (16 << 10)),
     // 1 x  64k
     FLASH_BASE + (4 * (16 << 10)),
-    // 7 x 128k
+    // 3 x 128k
     FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (0 * (128 << 10)),
     FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (1 * (128 << 10)),
     FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (2 * (128 << 10)),
-    FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (3 * (128 << 10)),
-    FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (4 * (128 << 10)),
-    FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (5 * (128 << 10)),
-    FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (6 * (128 << 10)),
-    // END
-    FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (7 * (128 << 10)),
+	// END
+	FLASH_BASE + (4 * (16 << 10)) + (64 << 10) + (3 * (128 << 10)),
 };
 
 static uint32_t getFlashSectorAddress( uint32_t const index )
@@ -136,11 +133,13 @@ uint32_t getFlashBaseAddress( void )
 The base address is FLASH_BASE = 0x08000000 but this is shared with program
 memory and so a suitable offset should be used
 */
-    return getFlashSectorAddress( 11 );
+    return getFlashSectorAddress( 5 );
 }
 
 ProfileStatus eraseFlash( uint32_t const address, uint32_t const length )
 {
+	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR);
+	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGSERR);
     // Disallow zero length (could ignore)
     if (length == 0)
     {
@@ -165,6 +164,7 @@ ProfileStatus eraseFlash( uint32_t const address, uint32_t const length )
     sector_erase.Banks     = FLASH_BANK_1; // (ignored)
     sector_erase.Sector    = ssector;
     sector_erase.NbSectors = (esector - ssector + 1);
+    sector_erase.VoltageRange = FLASH_VOLTAGE_RANGE_4;
 
     uint32_t bad_sector = 0;
 
@@ -182,7 +182,11 @@ ProfileStatus eraseFlash( uint32_t const address, uint32_t const length )
             return PROFILE_STATUS_UNKNOWN;
     }
 }
-#endif
+
+
+
+
+
 void mesc_init_1( void )
 {
     // Do nothing

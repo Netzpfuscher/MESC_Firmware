@@ -40,6 +40,8 @@
 
 #include "fingerprint.h"
 
+#include "TTerm.h"
+
 #define PROFILE_SIGNATURE     MAKE_UINT32_STRING('M','E','S','C')
 
 #define PROFILE_VERSION_MAJOR UINT8_C(1)
@@ -205,7 +207,7 @@ ProfileStatus profile_alloc_entry(
 
 ProfileStatus profile_get_entry(
     char const * name, uint32_t const signature,
-    void * const buffer, uint32_t * const length );
+    void * const buffer, uint32_t * const length);
 
 ProfileStatus profile_read_entry(
     uint32_t * const index, ProfileEntry const ** const entry );
@@ -225,6 +227,8 @@ ProfileStatus profile_del_entry(
 ProfileStatus profile_commit( void );
 
 bool profile_get_modified( void );
+
+uint8_t profile_cli_info(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
 
 #define PROFILE_DEFAULT NULL // Generic symbol to indicate loading of default profile
 

@@ -60,7 +60,13 @@ foc_measurement_t measurement_buffers;
 input_vars_t input_vars;
 
 void MESCInit() {
+DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
 MotorState = MOTOR_STATE_IDLE;
+
+	motor.Lphase = motor_profile->L_D;
+	motor.Lqphase = motor_profile->L_Q;
+	motor.Rphase = motor_profile->R;
+	motor.motor_flux = motor_profile->flux_linkage;
 
   mesc_init_1();
 
@@ -78,6 +84,10 @@ MotorState = MOTOR_STATE_IDLE;
   // startup
   mesc_init_3();
   MotorState = MOTOR_STATE_INITIALISING;
+
+#ifdef USE_HFI
+  foc_vars.hfi_enable = true;
+#endif
 
 #ifdef USE_ENCODER
   foc_vars.enc_offset = ENCODER_E_OFFSET;
@@ -212,6 +222,7 @@ void fastLoop() {
       //      }//For now we are going to not support BLDC mode
     	generateEnable();
       if (MotorSensorMode == MOTOR_SENSOR_MODE_HALL) {
+    	foc_vars.inject = 0;
         hallAngleEstimator();
         angleObserver();
         MESCFOC();
@@ -228,7 +239,12 @@ void fastLoop() {
 			  // Track using BEMF from phase sensors
 			  generateBreak();
 		      MESCTrack();
-		      flux_observer();
+		      if (MotorSensorMode == MOTOR_SENSOR_MODE_HALL) {
+		          hallAngleEstimator();
+		          angleObserver();
+		      } else if (MotorSensorMode == MOTOR_SENSOR_MODE_SENSORLESS) {
+		    	  flux_observer();
+		      }
 #endif
 
       break;
@@ -350,9 +366,10 @@ static MESCiq_s dIdq = {.d = 0.0f, .q = 0.0f};
 static MESCiq_s intdidq;
 static volatile float nrm;
 static volatile float nrm_avg;
+static uint16_t last_angle;
 
 void hyperLoop() {
-#ifdef USE_HFI
+if(foc_vars.hfi_enable){
   if (foc_vars.inject) {
     if (foc_vars.inject_high_low_now == 0) {
       foc_vars.inject_high_low_now = 1;
@@ -391,9 +408,21 @@ void hyperLoop() {
         foc_vars.FOCAngle += (int)(250.0f*foc_vars.IIR[1] + 5.50f*intdidq.q);
     }
   }
-#endif
+}
 #ifdef USE_ENCODER
 tle5012();
+#endif
+//RunPLL for all angle options
+foc_vars.angle_error = foc_vars.angle_error-0.02f*(int16_t)((foc_vars.angle_error+(int)(last_angle - foc_vars.FOCAngle)));
+foc_vars.eHz = foc_vars.angle_error * foc_vars.pwm_frequency/65536.0f;
+last_angle = foc_vars.FOCAngle;
+#ifdef INTERPOLATE_V7_ANGLE
+if(fabs(foc_vars.eHz)>0.005*foc_vars.pwm_frequency){
+	//Only run it when there is likely to be good speed measurement stability and
+	//actual utility in doing it. At low speed, there is minimal benefit, and
+	//unstable speed estimation could make it worse.
+foc_vars.FOCAngle = foc_vars.FOCAngle + 0.5f*foc_vars.angle_error;
+}
 #endif
  // foc_vars.FOCAngle = foc_vars.FOCAngle + foc_vars.angle_error;
 if(MotorState==MOTOR_STATE_RUN||MotorState==MOTOR_STATE_MEASURING){
@@ -625,16 +654,11 @@ if(phasebalance){
 
 
     if(foc_vars.inject==0){
-        //Run PLL for speed
-    	foc_vars.angle_error = foc_vars.angle_error-0.1f*(int16_t)((foc_vars.angle_error+(int)(foc_vars.FOCAngle - angle)));
-    	foc_vars.eHz = foc_vars.angle_error * foc_vars.pwm_frequency/65536.0f;
 #ifdef DO_OPENLOOP
     foc_vars.FOCAngle = foc_vars.FOCAngle+60;
 #else
     foc_vars.FOCAngle = angle;
 #endif
-    }else{
-    	foc_vars.eHz = 0;
     }
 
 #ifdef USE_ENCODER
@@ -1166,6 +1190,7 @@ if(phasebalance){
     static int rollover;
     hallstate = current_hall_state;
     if (firstturn) {
+    	generateEnable();
       lasthallstate = hallstate;
       (void)lasthallstate;
       firstturn = 0;
@@ -1175,14 +1200,14 @@ if(phasebalance){
     static uint16_t a = 65535;
     if (a)  // Align time
     {
-      foc_vars.Idq_req.d = 10;
-      foc_vars.Idq_req.q = 0;
+      foc_vars.Idq_req.d = 10.0f;
+      foc_vars.Idq_req.q = 0.0f;
 
-      foc_vars.FOCAngle = 0;
+      foc_vars.FOCAngle = 0.0f;
       a = a - 1;
     } else {
-      foc_vars.Idq_req.d = 10;
-      foc_vars.Idq_req.q = 0;
+      foc_vars.Idq_req.d = 10.0f;
+      foc_vars.Idq_req.q = 0.0f;
       static int dir = 1;
       if (pwm_count < 65534) {
         if (foc_vars.FOCAngle < (anglestep)) {
@@ -1662,6 +1687,11 @@ if(foc_vars.Idq_req.q<input_vars.min_request_Idq.q){foc_vars.Idq_req.q = input_v
     	foc_vars.flux_linked_beta = 0.5f * motor.motor_flux;
     }
 
+//////////////////////Run the LR observer
+#ifdef USE_LR_OBSERVER
+    LRObserver();
+
+#endif
     //////Set tracking
 static int was_last_tracking;
 
@@ -1692,8 +1722,8 @@ was_last_tracking = 1;
 }
 //foc_vars.Idq_req[0] = 10; //for aligning encoder
 /////////////Set and reset the HFI////////////////////////
-#ifdef USE_HFI
-    if((foc_vars.Vdq.q > 2.0f)||(foc_vars.Vdq.q < -2.0f)){
+if(foc_vars.hfi_enable){
+    if((foc_vars.Vdq.q > 2.0f)||(foc_vars.Vdq.q < -2.0f)||(MotorSensorMode==MOTOR_SENSOR_MODE_HALL)){
     	foc_vars.inject = 0;
     } else if((foc_vars.Vdq.q < 1.0f)&&(foc_vars.Vdq.q > -1.0f)){
     	foc_vars.inject = 1;
@@ -1729,14 +1759,14 @@ was_last_tracking = 1;
 		HFI_countdown--;
 	    if(no_q){foc_vars.Idq_req.q=0.0f;}
     }
-#endif
+}
 
     //Speed tracker
     if(abs(foc_vars.angle_error)>6000){
     	foc_vars.angle_error = 0;
     }
   }
-  }
+ }
 
 
   void MESCTrack() {
@@ -1931,4 +1961,44 @@ uint16_t test_counts;
 	}
   }
 
+  //LR observer. WIP function that works by injecting a
+  //low frequency Id signal into the PID input and observing the change in Vd and Vq
+  //Does not work too well, requires some care in use.
+  //Original work to MESC project.
+  float Vd_obs_high, Vd_obs_low, R_observer, Vq_obs_high, Vq_obs_low, L_observer, Last_eHz;
+  void LRObserver(){
+	  if((fabs(foc_vars.eHz)>0.005*foc_vars.pwm_frequency)&&(foc_vars.inject ==0)){
+	  	static int plusminus = 1;
+	  	if(plusminus==1){
+	  		plusminus = -1;
+	  		Vd_obs_low = 0.9f*Vd_obs_low+0.1f*foc_vars.Vdq.d;
+	  		Vq_obs_low = 0.9f*Vq_obs_low+0.1f*foc_vars.Vdq.q;
+	  		foc_vars.Idq_req.d = foc_vars.Idq_req.d+LR_OBS_CURRENT;
+	  	}else if(plusminus == -1){
+	  		plusminus = 1;
+	  		Vd_obs_high = 0.9f*Vd_obs_high+0.1f*foc_vars.Vdq.d;
+	  		Vq_obs_high = 0.9f*Vq_obs_high+0.1f*foc_vars.Vdq.q;
+	  		foc_vars.Idq_req.d = foc_vars.Idq_req.d-LR_OBS_CURRENT;
+	  	}
+
+	  	R_observer = (Vd_obs_high-Vd_obs_low)/(2.0f*LR_OBS_CURRENT);
+	  	L_observer = (Vq_obs_high-Vq_obs_low-6.28f*(foc_vars.eHz-Last_eHz)*motor.motor_flux)/(2.0f*LR_OBS_CURRENT*6.28f*foc_vars.eHz);
+	  	Last_eHz = foc_vars.eHz;
+	  	float Rerror = R_observer-motor.Rphase;
+	  	float Lerror = L_observer-motor.Lphase;
+	  	//Apply the correction excluding large changes
+	  	if(fabs(Rerror)<0.1f*motor.Rphase){
+	  		motor.Rphase = motor.Rphase+0.1f*Rerror;
+	  	}else if(fabs(Rerror)<0.5f*motor.Rphase){
+	  		motor.Rphase = motor.Rphase+0.001f*Rerror;
+	  	}
+	  	if(fabs(Lerror)<0.1f*motor.Lphase){
+	  		motor.Lphase = motor.Lphase+0.1f*Lerror;
+	  		motor.Lqphase = motor.Lqphase +0.1f*Lerror;
+	  	}else if(fabs(Lerror)<0.5f*motor.Lphase){
+	  		motor.Lphase = motor.Lphase+0.001f*Lerror;
+	  		motor.Lqphase = motor.Lqphase +0.001f*Lerror;
+	  	}
+	  }
+  }
   // clang-format on

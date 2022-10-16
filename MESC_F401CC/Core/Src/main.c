@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "MESCmotor.h"
+#include "MESCprofile.h"
 
 #ifdef RTOS
 #include "init.h"
@@ -131,17 +132,27 @@ int main(void)
   // Here we can auto set the prescaler to get the us input regardless of the main clock
   __HAL_TIM_SET_PRESCALER(&htim2, (HAL_RCC_GetHCLKFreq() / 1000000 - 1));
 
+
+  // Attach flash IO to profile
+  flash_register_profile_io();
+  // Load stored profile
+  ProfileStatus const sts = profile_init();
+  motor_init( PROFILE_DEFAULT );
+
+
+
+
 //Initialise MESC
 MESCInit();
-motor_init(NULL);
-motor.Rphase = DEFAULT_MOTOR_R;
-motor.Lphase = DEFAULT_MOTOR_Ld;
-motor.Lqphase = DEFAULT_MOTOR_Lq;
-motor.motor_flux = DEFAULT_FLUX_LINKAGE;
-motor.measure_current = I_MEASURE;
-motor.measure_voltage = V_MEASURE;
-//motor_profile->Pmax = 50.0f;
-motor.uncertainty = 1;
+//motor_init(NULL);
+//motor.Rphase = DEFAULT_MOTOR_R;
+//motor.Lphase = DEFAULT_MOTOR_Ld;
+//motor.Lqphase = DEFAULT_MOTOR_Lq;
+//motor.motor_flux = DEFAULT_FLUX_LINKAGE;
+//motor.measure_current = I_MEASURE;
+//motor.measure_voltage = V_MEASURE;
+////motor_profile->Pmax = 50.0f;
+//motor.uncertainty = 1;
 
 calculateGains();
 calculateVoltageGain();
