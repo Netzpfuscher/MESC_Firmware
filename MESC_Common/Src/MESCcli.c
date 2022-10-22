@@ -311,7 +311,7 @@ static uint32_t cli_write_uint(TERMINAL_HANDLE * handle, CLIEntry * entry, char 
 
 static uint32_t cli_write_float(TERMINAL_HANDLE * handle, CLIEntry * entry, char * c_val){
 	if(entry->access & CLI_ACCESS_W){
-		float f_val = atof(c_val);
+		float f_val = strtof(c_val, NULL);
 		switch(entry->size){
 			case 4:
 				*(float*)entry->var.w = f_val;

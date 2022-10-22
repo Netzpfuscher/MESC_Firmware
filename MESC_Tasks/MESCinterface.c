@@ -11,6 +11,7 @@
 #include "MESCflash.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 	motor.measure_current = I_MEASURE;
@@ -66,6 +67,10 @@ uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 
     foc_vars.hfi_enable = old_hfi_state;
 
+    motor_profile->R = motor.Rphase;
+    motor_profile->L_D = motor.Lphase;
+    motor_profile->L_Q = motor.Lqphase;
+
     ttprintf("R = %f %s\r\nLd = %f %s\r\nLq = %f %s\r\n", R, Runit, Ld, Lunit, Lq, Lunit);
 
     return TERM_CMD_EXIT_SUCCESS;
@@ -98,7 +103,31 @@ uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 
 	ttprintf("\r\nResult:\r\n");
 
+	motor_profile->flux_linkage = motor.motor_flux;
+
     ttprintf("Flux = %f mWb\r\n", motor.motor_flux * 1000.0);
+
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+
+extern uint16_t deadtime_comp;
+uint8_t CMD_detect(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
+	TestMode = TEST_TYPE_DEAD_TIME_IDENT;
+	MotorState = MOTOR_STATE_TEST;
+
+	ttprintf("Waiting for result");
+
+	port_str * port = handle->port;
+	while(MotorState == MOTOR_STATE_TEST){
+		xSemaphoreGive(port->term_block);
+		vTaskDelay(200);
+		xQueueSemaphoreTake(port->term_block, portMAX_DELAY);
+		ttprintf(".");
+	}
+
+	ttprintf("Deadtime register: %d\r\n", deadtime_comp);
+
 
     return TERM_CMD_EXIT_SUCCESS;
 }
@@ -108,10 +137,6 @@ uint8_t CMD_flash(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 	if(argCount){
 		if(strcmp(args[0], "w")==0){
 			uint32_t len = sizeof(MOTORProfile);
-			motor_profile->L_D = motor.Lphase;
-			motor_profile->L_Q = motor.Lqphase;
-			motor_profile->R = motor.Rphase;
-			motor_profile->flux_linkage = motor.motor_flux;
 
 			ProfileStatus ret = profile_put_entry( "MTR", MOTOR_PROFILE_SIGNATURE, motor_profile, &len );
 			profile_commit();
@@ -144,15 +169,16 @@ void MESCinterface_init(void){
     cli_register_var_rw( "lq"     , motor.Lqphase);
     cli_register_var_rw( "r"      , motor.Rphase);
 
-
 	TERM_addCommand(CMD_measure, "measure", "Measure motor R+L", 0, &TERM_defaultList);
 	TERM_addCommand(CMD_getkv, "getkv", "Measure motor kV", 0, &TERM_defaultList);
+	TERM_addCommand(CMD_detect, "deadtime", "Detect deadtime compensation", 0, &TERM_defaultList);
 	TERM_addCommand(cli_read, "read", "Read variable", 0, &TERM_defaultList);
 	TERM_addCommand(cli_write, "write", "Write variable", 0, &TERM_defaultList);
 	TERM_addCommand(cli_list, "list", "List all variables", 0, &TERM_defaultList);
 	TERM_addCommand(CMD_status, "status", "Realtime data", 0, &TERM_defaultList);
 	TERM_addCommand(profile_cli_info, "profile", "Profile info", 0, &TERM_defaultList);
 	TERM_addCommand(CMD_flash, "flash", "Flash write", 0, &TERM_defaultList);
+
 
 	REGISTER_apps(&TERM_defaultList);
 }

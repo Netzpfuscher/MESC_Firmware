@@ -151,6 +151,8 @@ typedef struct {
 
   float IIR[2];
   bool hfi_enable;
+  uint32_t cycles_fastloop;
+  uint32_t cycles_hyperloop;
 } MESCfoc_s;
 
 extern MESCfoc_s foc_vars;

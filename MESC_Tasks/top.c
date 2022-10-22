@@ -24,9 +24,11 @@
 #include "top.h"
 #include "string.h"
 
+#include "MESCfoc.h"
+
 #define APP_NAME "top"
 #define APP_DESCRIPTION "shows performance stats"
-#define APP_STACK 250
+#define APP_STACK 400
 
 static uint8_t CMD_main(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args);
 static void TASK_main(void *pvParameters);
@@ -84,6 +86,12 @@ static void TASK_main(void *pvParameters){
             uint32_t cpuLoad = SYS_getCPULoadFine(taskStats, taskCount, sysTime);
             ttprintf("%sbottom - %d\r\n%sTasks: \t%d\r\n%sCPU: \t%d,%d%%\r\n", TERM_getVT100Code(_VT100_ERASE_LINE_END, 0), xTaskGetTickCount(), TERM_getVT100Code(_VT100_ERASE_LINE_END, 0), taskCount, TERM_getVT100Code(_VT100_ERASE_LINE_END, 0), cpuLoad / 10, cpuLoad % 10);
             
+            uint32_t max_cycles= foc_vars.cycles_fastloop>foc_vars.cycles_hyperloop ? foc_vars.cycles_fastloop : foc_vars.cycles_hyperloop;
+            uint32_t cycles_available = HAL_RCC_GetHCLKFreq() / foc_vars.pwm_frequency;
+            uint32_t cycles_left = cycles_available - max_cycles;
+            float foc_load = 100.0f / cycles_available * max_cycles;
+            ttprintf("%sFOC load %3.0f%% - Hyperloop: %5d Fastloop: %5d Cycles to overrun: %5d\r\n", TERM_getVT100Code(_VT100_ERASE_LINE_END, 0),foc_load , foc_vars.cycles_hyperloop, foc_vars.cycles_fastloop, cycles_left);
+
             uint32_t heapRemaining = xPortGetFreeHeapSize();
             ttprintf("%sMem: \t%db total,\t %db free,\t %db used (%d%%)\r\n", TERM_getVT100Code(_VT100_ERASE_LINE_END, 0), configTOTAL_HEAP_SIZE, heapRemaining, configTOTAL_HEAP_SIZE - heapRemaining, ((configTOTAL_HEAP_SIZE - heapRemaining) * 100) / configTOTAL_HEAP_SIZE);
             //taskStats[0].

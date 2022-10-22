@@ -59,31 +59,46 @@ MESCtest_s test_vals;
 foc_measurement_t measurement_buffers;
 input_vars_t input_vars;
 
+
+//Debug
+#define DEMCR_TRCENA    0x01000000
+#define DEMCR           (*((volatile uint32_t *)0xE000EDFC))
+#define DWT_CTRL        (*(volatile uint32_t *)0xe0001000)
+#define CYCCNTENA       (1<<0)
+#define DWT_CYCCNT      ((volatile uint32_t *)0xE0001004)
+#define CPU_CYCLES      *DWT_CYCCNT
+
 void MESCInit() {
-DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
-MotorState = MOTOR_STATE_IDLE;
+	DBGMCU->APB2FZ |= DBGMCU_APB2_FZ_DBG_TIM1_STOP;
+
+	//enable cycle counter
+	DEMCR |= DEMCR_TRCENA;
+	DWT_CTRL |= CYCCNTENA;
+
+
+	MotorState = MOTOR_STATE_IDLE;
 
 	motor.Lphase = motor_profile->L_D;
 	motor.Lqphase = motor_profile->L_Q;
 	motor.Rphase = motor_profile->R;
 	motor.motor_flux = motor_profile->flux_linkage;
 
-  mesc_init_1();
+	mesc_init_1();
 
-  HAL_Delay(3000);  // Give the everything else time to start up (e.g. throttle,
-                    // controller, PWM source...)
+	HAL_Delay(3000);  // Give the everything else time to start up (e.g. throttle,
+					// controller, PWM source...)
 
-  mesc_init_2();
+	mesc_init_2();
 
-  hw_init();  // Populate the resistances, gains etc of the PCB - edit within
-              // this function if compiling for other PCBs
+	hw_init();  // Populate the resistances, gains etc of the PCB - edit within
+			  // this function if compiling for other PCBs
 
 
-  // Start the PWM channels, reset the counter to zero each time to avoid
-  // triggering the ADC, which in turn triggers the ISR routine and wrecks the
-  // startup
-  mesc_init_3();
-  MotorState = MOTOR_STATE_INITIALISING;
+	// Start the PWM channels, reset the counter to zero each time to avoid
+	// triggering the ADC, which in turn triggers the ISR routine and wrecks the
+	// startup
+	mesc_init_3();
+	MotorState = MOTOR_STATE_INITIALISING;
 
 #ifdef USE_HFI
   foc_vars.hfi_enable = true;
@@ -176,16 +191,19 @@ void initialiseInverter(){
 // for MESC to run Ensure that it is followed by the clear timer update
 // interrupt
 void MESC_PWM_IRQ_handler() {
+	uint32_t cycles = CPU_CYCLES;
   if (htim1.Instance->CNT > 512) {
     foc_vars.IRQentry = debugtim.Instance->CNT;
     fastLoop();
     foc_vars.IRQexit = debugtim.Instance->CNT - foc_vars.IRQentry;
     foc_vars.FLrun++;
+    foc_vars.cycles_fastloop = CPU_CYCLES - cycles;
   } else {
     foc_vars.IRQentry = debugtim.Instance->CNT;
     hyperLoop();
     foc_vars.IRQexit = debugtim.Instance->CNT - foc_vars.IRQentry;
     foc_vars.VFLrun++;
+    foc_vars.cycles_hyperloop = CPU_CYCLES - cycles;
   }
 }
 
