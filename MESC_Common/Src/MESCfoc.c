@@ -1007,14 +1007,35 @@ if(phasebalance){
   // This function needs implementing and testing before any high current or
   // voltage is applied, otherwise... DeadFETs
   void generateBreak() {
-    phU_Break();
-    phV_Break();
-    phW_Break();
+	uint32_t tmpccmr;
+
+	tmpccmr = htim1.Instance->CCMR1;
+	tmpccmr &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_CC1S | TIM_CCMR1_OC1M | TIM_CCMR1_CC1S);
+	tmpccmr |= (TIM_OCMODE_FORCED_INACTIVE | (TIM_OCMODE_FORCED_INACTIVE << 8));
+	htim1.Instance->CCMR1 = tmpccmr;
+
+    tmpccmr = htim1.Instance->CCMR2;
+    tmpccmr &= ~(TIM_CCMR2_OC3M | TIM_CCMR2_CC3S);
+    tmpccmr |= TIM_OCMODE_FORCED_INACTIVE;
+    htim1.Instance->CCMR2 = tmpccmr;
+
+	htim1.Instance->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCMR2_CC3S | TIM_CCER_CC3NE);   // disable
+
   }
   void generateEnable() {
-    phU_Enable();
-    phV_Enable();
-    phW_Enable();
+	uint32_t tmpccmr;
+	tmpccmr = htim1.Instance->CCMR1;
+	tmpccmr &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_CC1S | TIM_CCMR1_OC2M | TIM_CCMR1_CC2S);
+	tmpccmr |= (TIM_OCMODE_PWM1 | (TIM_OCMODE_PWM1 << 8));
+	htim1.Instance->CCMR1 = tmpccmr;
+
+    tmpccmr = htim1.Instance->CCMR2;
+    tmpccmr &= ~(TIM_CCMR2_OC3M | TIM_CCMR2_CC3S);
+    tmpccmr |= TIM_OCMODE_PWM1;
+    htim1.Instance->CCMR2 = tmpccmr;
+
+	htim1.Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCER_CC3E | TIM_CCER_CC3NE);   // enable
+
   }
 
   static float top_V;
