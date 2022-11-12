@@ -32,7 +32,7 @@ uint8_t CMD_measure(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 		motor.measure_voltage = atoff(args[1]);
 	}
 
-    MotorState = MOTOR_STATE_MEASURING;
+	MESCmotor_state_set(MOTOR_STATE_MEASURING);
     ttprintf("Waiting for result");
 
     port_str * port = handle->port;
@@ -90,7 +90,7 @@ uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 
 	}
 
-    MotorState = MOTOR_STATE_GET_KV;
+	MESCmotor_state_set(MOTOR_STATE_GET_KV);
     ttprintf("Waiting for result");
 
     port_str * port = handle->port;
@@ -114,7 +114,7 @@ uint8_t CMD_getkv(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 extern uint16_t deadtime_comp;
 uint8_t CMD_detect(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
 	TestMode = TEST_TYPE_DEAD_TIME_IDENT;
-	MotorState = MOTOR_STATE_TEST;
+	MESCmotor_state_set(MOTOR_STATE_TEST);
 
 	ttprintf("Waiting for result");
 

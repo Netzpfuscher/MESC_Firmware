@@ -51,6 +51,7 @@ float sqrt1_2 = 0.707107f;
 float sqrt3_on_2 = 0.866025f;
 float two_on_sqrt3 = 1.73205f;
 int adc_conv_end;
+
 //static float flux_linked_alpha = 0.00501f;
 //static float flux_linked_beta = 0.00511f;
 
@@ -76,7 +77,7 @@ void MESCInit() {
 	DWT_CTRL |= CYCCNTENA;
 
 
-	MotorState = MOTOR_STATE_IDLE;
+	MESCmotor_state_set(MOTOR_STATE_IDLE);
 
 	motor.Lphase = motor_profile->L_D;
 	motor.Lqphase = motor_profile->L_Q;
@@ -98,7 +99,7 @@ void MESCInit() {
 	// triggering the ADC, which in turn triggers the ISR routine and wrecks the
 	// startup
 	mesc_init_3();
-	MotorState = MOTOR_STATE_INITIALISING;
+	MESCmotor_state_set(MOTOR_STATE_INITIALISING);
 
 #ifdef USE_HFI
   foc_vars.hfi_enable = true;
@@ -181,7 +182,7 @@ void initialiseInverter(){
         for (uint32_t i = 0; i < 3; i++) {
           measurement_buffers.ADCOffset[i] /= 1000;
         }
-    	MotorState = MOTOR_STATE_TRACKING;
+        MESCmotor_state_set(MOTOR_STATE_TRACKING);
         htim1.Instance->BDTR |= TIM_BDTR_MOE;
       }
 }
@@ -238,7 +239,6 @@ void fastLoop() {
       //        BLDCCurrentController();
       //        BLDCCommuteHall();
       //      }//For now we are going to not support BLDC mode
-    	generateEnable();
       if (MotorSensorMode == MOTOR_SENSOR_MODE_HALL) {
     	foc_vars.inject = 0;
         hallAngleEstimator();
@@ -255,7 +255,6 @@ void fastLoop() {
     case MOTOR_STATE_TRACKING:
 #ifdef HAS_PHASE_SENSORS
 			  // Track using BEMF from phase sensors
-			  generateBreak();
 		      MESCTrack();
 		      if (MotorSensorMode == MOTOR_SENSOR_MODE_HALL) {
 		          hallAngleEstimator();
@@ -284,7 +283,6 @@ void fastLoop() {
       break;
 
     case MOTOR_STATE_IDLE:
-        generateBreak();
       // Do basically nothing
       break;
 
@@ -293,9 +291,9 @@ void fastLoop() {
       if ((current_hall_state == 7)) {
         // no hall sensors detected, all GPIO pulled high
         MotorSensorMode = MOTOR_SENSOR_MODE_SENSORLESS;
-        MotorState = MOTOR_STATE_GET_KV;
+        MESCmotor_state_set(MOTOR_STATE_GET_KV);
       } else if (current_hall_state == 0) {
-        MotorState = MOTOR_STATE_ERROR;
+    	  MESCmotor_state_set(MOTOR_STATE_ERROR);
         MotorError = MOTOR_ERROR_HALL0;
       }
       // ToDo add reporting
@@ -336,8 +334,6 @@ void fastLoop() {
       break;
 
     case MOTOR_STATE_ERROR:
-      generateBreak();  // Generate a break state (software disabling all PWM)
-                        // Now panic and freak out
       break;
 
     case MOTOR_STATE_ALIGN:
@@ -364,8 +360,8 @@ void fastLoop() {
 
       break;
     default:
-      MotorState = MOTOR_STATE_ERROR;
-      generateBreak();
+    	MESCmotor_state_set(MOTOR_STATE_ERROR);
+
       break;
   }
 #ifdef SOFTWARE_ADC_REGULAR
@@ -736,10 +732,10 @@ if(phasebalance){
     if (current_hall_state != last_hall_state) {
       foc_vars.hall_update = 1;
       if (current_hall_state == 0) {
-        MotorState = MOTOR_STATE_ERROR;
+    	MESCmotor_state_set(MOTOR_STATE_ERROR);
         MotorError = MOTOR_ERROR_HALL0;
       } else if (current_hall_state == 7) {
-        MotorState = MOTOR_STATE_ERROR;
+    	MESCmotor_state_set(MOTOR_STATE_ERROR);
         MotorError = MOTOR_ERROR_HALL7;
       }
       //////////Implement the Hall table here, but the vector can be dynamically
@@ -1006,37 +1002,20 @@ if(phasebalance){
   // single PWM period break in which the backEMF can be measured directly
   // This function needs implementing and testing before any high current or
   // voltage is applied, otherwise... DeadFETs
-  void generateBreak() {
-	uint32_t tmpccmr;
+void generateBreak() {
 
-	tmpccmr = htim1.Instance->CCMR1;
-	tmpccmr &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_CC1S | TIM_CCMR1_OC1M | TIM_CCMR1_CC1S);
-	tmpccmr |= (TIM_OCMODE_FORCED_INACTIVE | (TIM_OCMODE_FORCED_INACTIVE << 8));
-	htim1.Instance->CCMR1 = tmpccmr;
-
-    tmpccmr = htim1.Instance->CCMR2;
-    tmpccmr &= ~(TIM_CCMR2_OC3M | TIM_CCMR2_CC3S);
-    tmpccmr |= TIM_OCMODE_FORCED_INACTIVE;
-    htim1.Instance->CCMR2 = tmpccmr;
-
-	htim1.Instance->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCMR2_CC3S | TIM_CCER_CC3NE);   // disable
+	phU_Break();
+	phV_Break();
+	phW_Break();
 
   }
-  void generateEnable() {
-	uint32_t tmpccmr;
-	tmpccmr = htim1.Instance->CCMR1;
-	tmpccmr &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_CC1S | TIM_CCMR1_OC2M | TIM_CCMR1_CC2S);
-	tmpccmr |= (TIM_OCMODE_PWM1 | (TIM_OCMODE_PWM1 << 8));
-	htim1.Instance->CCMR1 = tmpccmr;
+void generateEnable() {
 
-    tmpccmr = htim1.Instance->CCMR2;
-    tmpccmr &= ~(TIM_CCMR2_OC3M | TIM_CCMR2_CC3S);
-    tmpccmr |= TIM_OCMODE_PWM1;
-    htim1.Instance->CCMR2 = tmpccmr;
+	phU_Enable();
+	phV_Enable();
+	phW_Enable();
 
-	htim1.Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE | TIM_CCER_CC3E | TIM_CCER_CC3NE);   // enable
-
-  }
+}
 
   static float top_V;
   static float bottom_V;
@@ -1199,7 +1178,7 @@ if(phasebalance){
           fabsf((foc_vars.Vq_injectionV) /
           ((top_I_Lq - bottom_I_Lq) / (count_top * foc_vars.pwm_period)));
 
-      MotorState = MOTOR_STATE_IDLE;
+      MESCmotor_state_set(MOTOR_STATE_IDLE);
       motor.uncertainty = 0;
 
       foc_vars.inject = 0;  // flag to the SVPWM writer stop injecting at top
@@ -1207,7 +1186,7 @@ if(phasebalance){
       foc_vars.Vq_injectionV = 0.0f;
       calculateGains();
       // MotorState = MOTOR_STATE_IDLE;  //
-      MotorState = MOTOR_STATE_TRACKING;
+      MESCmotor_state_set(MOTOR_STATE_TRACKING);
       //MotorState = MOTOR_STATE_DETECTING;
       PWM_cycles = 0;
       phU_Enable();
@@ -1314,7 +1293,7 @@ if(phasebalance){
             foc_vars.hall_table[i][0] = foc_vars.hall_table[i][2]-foc_vars.hall_table[i][3]/2;//This is the start angle of the hall state
             foc_vars.hall_table[i][1] = foc_vars.hall_table[i][2]+foc_vars.hall_table[i][3]/2;//This is the end angle of the hall state
       }
-      MotorState = MOTOR_STATE_RUN;
+      MESCmotor_state_set(MOTOR_STATE_RUN);
       foc_vars.Idq_req.d = 0;
       foc_vars.Idq_req.q = 0;
       phU_Enable();
@@ -1403,13 +1382,13 @@ if(phasebalance){
     	motor_profile->flux_linkage_max = 1.3f*motor.motor_flux;
     	motor_profile->flux_linkage_min = 0.7f*motor.motor_flux;
     	motor_profile->flux_linkage = motor.motor_flux;
-      MotorState = MOTOR_STATE_TRACKING;
+    	MESCmotor_state_set(MOTOR_STATE_TRACKING);
       cycles = 0;
       //motor.motor_flux = BEMFaccumulator / (2 * count);
       if (motor.motor_flux > 0.0001f && motor.motor_flux < 200.0f) {
         MotorSensorMode = MOTOR_SENSOR_MODE_SENSORLESS;
       } else {
-        MotorState = MOTOR_STATE_ERROR;
+    	MESCmotor_state_set(MOTOR_STATE_ERROR);
         generateBreak();
       }
     }
@@ -1564,7 +1543,7 @@ if(phasebalance){
           measurement_buffers.ConvertedADC[1][FOC_CHANNEL_PHASE_I];
       dp_counter = 0;
       generateBreak();
-      MotorState = MOTOR_STATE_IDLE;
+      MESCmotor_state_set(MOTOR_STATE_IDLE);
     }
   }
   void MESC_Slow_IRQ_handler(TIM_HandleTypeDef *htim){
@@ -1701,7 +1680,7 @@ if(foc_vars.Idq_req.q<input_vars.min_request_Idq.q){foc_vars.Idq_req.q = input_v
 
     if(temp_check( measurement_buffers.RawADC[3][0] ) == false){
     	if(0){generateBreak(); //ToDo Currently not loading the profile so commented out - no temp safety!
-    	MotorState = MOTOR_STATE_ERROR;
+    	MESCmotor_state_set(MOTOR_STATE_ERROR);
     	MotorError = MOTOR_ERROR_OVER_LIMIT_TEMP;
     	}
     }
@@ -1739,7 +1718,7 @@ if(fabsf(foc_vars.Idq_req.q)>0.1f){
 
 	if(MotorState != MOTOR_STATE_ERROR){
 #ifdef HAS_PHASE_SENSORS //We can go straight to RUN if we have been tracking with phase sensors
-	MotorState = MOTOR_STATE_RUN;
+		MESCmotor_state_set(MOTOR_STATE_RUN);
 #endif
 if(MotorState==MOTOR_STATE_IDLE){
 #ifdef USE_DEADSHORT
@@ -1750,7 +1729,7 @@ if(MotorState==MOTOR_STATE_IDLE){
 	}
 }else{
 #ifdef HAS_PHASE_SENSORS
-	MotorState = MOTOR_STATE_TRACKING;
+	MESCmotor_state_set(MOTOR_STATE_TRACKING);
 #else
 //	if(MotorState != MOTOR_STATE_ERROR){
 	MotorState = MOTOR_STATE_IDLE;
@@ -1925,7 +1904,7 @@ if(foc_vars.hfi_enable){
 	  		if(countdown == 1 ){
 					countdown = 15; //We need at least a few cycles for the current to relax
 									//to zero in case of rapid switching between states
-  					MotorState = MOTOR_STATE_RUN;
+					MESCmotor_state_set(MOTOR_STATE_RUN);
 
 	  		}
 	  		countdown--;
@@ -1985,7 +1964,7 @@ uint16_t test_counts;
 		}
 		if(use_phase>2){
 			generateBreak();
-			MotorState = MOTOR_STATE_TRACKING;
+			MESCmotor_state_set(MOTOR_STATE_TRACKING);
 			use_phase = 0;
 			test_on_time_acc[0] = test_on_time_acc[0]>>10;
 			test_on_time_acc[1] = test_on_time_acc[1]>>10;

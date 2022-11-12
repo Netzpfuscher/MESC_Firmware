@@ -153,6 +153,7 @@ typedef struct {
   bool hfi_enable;
   uint32_t cycles_fastloop;
   uint32_t cycles_hyperloop;
+  bool pwm_state;
 } MESCfoc_s;
 
 extern MESCfoc_s foc_vars;
