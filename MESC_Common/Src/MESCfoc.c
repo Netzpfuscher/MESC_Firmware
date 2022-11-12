@@ -490,8 +490,7 @@ void VICheck() {  // Check currents, voltages are within panic limits
 float maxIgamma;
 uint16_t phasebalance;
   void ADCConversion() {
-	  foc_vars.Vdq_smoothed.d = (foc_vars.Vdq_smoothed.d*99.0f + foc_vars.Vdq.d)*0.01f;
-	  foc_vars.Vdq_smoothed.q = (foc_vars.Vdq_smoothed.q*99.0f + foc_vars.Vdq.q)*0.01f;
+
 	  foc_vars.Idq_smoothed.d = (foc_vars.Idq_smoothed.d*99.0f + foc_vars.Idq.d)*0.01f;
 	  foc_vars.Idq_smoothed.q = (foc_vars.Idq_smoothed.q*99.0f + foc_vars.Idq.q)*0.01f;
 
@@ -1685,12 +1684,12 @@ if(foc_vars.Idq_req.q<input_vars.min_request_Idq.q){foc_vars.Idq_req.q = input_v
     	}
     }
 /////// Clamp the max power taken from the battery
-    foc_vars.reqPower = 1.5f*fabsf(foc_vars.Vdq_smoothed.q * foc_vars.Idq_req.q);
+    foc_vars.reqPower = 1.5f*fabsf(foc_vars.Vdq.q * foc_vars.Idq_req.q);
     if (foc_vars.reqPower > motor_profile->Pmax) {
     	if(foc_vars.Idq_req.q > 0.0f){
-    		foc_vars.Idq_req.q = motor_profile->Pmax / (fabsf(foc_vars.Vdq_smoothed.q)*1.5f);
+    		foc_vars.Idq_req.q = motor_profile->Pmax / (fabsf(foc_vars.Vdq.q)*1.5f);
     	}else{
-    		foc_vars.Idq_req.q = -motor_profile->Pmax / (fabsf(foc_vars.Vdq_smoothed.q)*1.5f);
+    		foc_vars.Idq_req.q = -motor_profile->Pmax / (fabsf(foc_vars.Vdq.q)*1.5f);
     	}
     }
 

@@ -87,7 +87,6 @@ typedef struct {
   	  	  	  	  	  	  	  	  	  	  	  // transformed current in amps
   float Vab[FOC_TRANSFORMED_CHANNELS + 1];
   MESCiq_s Vdq;
-  MESCiq_s Vdq_smoothed;
   MESCiq_s Idq_smoothed;
   MESCiq_s Idq_int_err;
   float id_mtpa;
@@ -153,7 +152,6 @@ typedef struct {
   bool hfi_enable;
   uint32_t cycles_fastloop;
   uint32_t cycles_hyperloop;
-  bool pwm_state;
 } MESCfoc_s;
 
 extern MESCfoc_s foc_vars;
