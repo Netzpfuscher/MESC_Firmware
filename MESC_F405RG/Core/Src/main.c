@@ -115,9 +115,7 @@ static void MX_I2C2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-extern uint8_t b_read_flash;
-extern uint8_t b_write_flash;
-volatile uint32_t swvcounter;
+
 /* USER CODE END 0 */
 
 /**
@@ -188,9 +186,6 @@ int main(void)
   motor_init( PROFILE_DEFAULT );
   MESCInit(&mtr[0]);
 
-  // MESC_Init();
-
-
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -222,6 +217,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
+  init_system();
+
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
